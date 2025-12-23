@@ -952,103 +952,104 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - name: OpenBSD VM
         uses: vmactions/openbsd-vm@v1.2.5
         with:
           prepare: |
             pkg_add cmake llvm-20.1.8p1 ninja
 
-          name: CMake
-          run: |
-            cmake -B build \
-              -G Ninja \
-              -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-              -DLLVM_ENABLE_LIBXML2=OFF \
-              -DC3_LLVM_VERSION=${LLVM_RELEASE_VERSION_OPENBSD}
-            cmake --build build )
+      - name: CMake
+        run: |
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+            -DLLVM_ENABLE_LIBXML2=OFF \
+            -DC3_LLVM_VERSION=${LLVM_RELEASE_VERSION_OPENBSD}
+          cmake --build build )
 
-          name: Compile and run some examples
-          run: |
+      - name: Compile and run some examples
+        run: |
 
-            cd resources
-            ../build/c3c compile examples/base64.c3
-            ../build/c3c compile examples/binarydigits.c3
-            ../build/c3c compile examples/brainfk.c3
-            ../build/c3c compile examples/factorial_macro.c3
-            ../build/c3c compile examples/fasta.c3
-            ../build/c3c compile examples/gameoflife.c3
-            ../build/c3c compile examples/hash.c3
-            ../build/c3c compile-only examples/levenshtein.c3
-            ../build/c3c compile examples/load_world.c3
-            ../build/c3c compile-only examples/map.c3
-            ../build/c3c compile examples/mandelbrot.c3
-            ../build/c3c compile examples/plus_minus.c3
-            ../build/c3c compile examples/nbodies.c3
-            ../build/c3c compile examples/spectralnorm.c3
-            ../build/c3c compile examples/swap.c3
-            ../build/c3c compile examples/contextfree/boolerr.c3
-            ../build/c3c compile examples/contextfree/dynscope.c3
-            ../build/c3c compile examples/contextfree/guess_number.c3
-            ../build/c3c compile examples/contextfree/multi.c3
-            ../build/c3c compile examples/contextfree/cleanup.c3
-            ../build/c3c compile-run examples/hello_world_many.c3
-            ../build/c3c compile-run examples/time.c3
-            ../build/c3c compile-run examples/fannkuch-redux.c3
-            ../build/c3c compile-run examples/contextfree/boolerr.c3
-            ../build/c3c compile-run examples/load_world.c3
-            ../build/c3c compile-run examples/process.c3
-            ../build/c3c compile-run examples/ls.c3
-            ../build/c3c compile-run examples/args.c3 -- foo -bar "baz baz"
+          cd resources
+          ../build/c3c compile examples/base64.c3
+          ../build/c3c compile examples/binarydigits.c3
+          ../build/c3c compile examples/brainfk.c3
+          ../build/c3c compile examples/factorial_macro.c3
+          ../build/c3c compile examples/fasta.c3
+          ../build/c3c compile examples/gameoflife.c3
+          ../build/c3c compile examples/hash.c3
+          ../build/c3c compile-only examples/levenshtein.c3
+          ../build/c3c compile examples/load_world.c3
+          ../build/c3c compile-only examples/map.c3
+          ../build/c3c compile examples/mandelbrot.c3
+          ../build/c3c compile examples/plus_minus.c3
+          ../build/c3c compile examples/nbodies.c3
+          ../build/c3c compile examples/spectralnorm.c3
+          ../build/c3c compile examples/swap.c3
+          ../build/c3c compile examples/contextfree/boolerr.c3
+          ../build/c3c compile examples/contextfree/dynscope.c3
+          ../build/c3c compile examples/contextfree/guess_number.c3
+          ../build/c3c compile examples/contextfree/multi.c3
+          ../build/c3c compile examples/contextfree/cleanup.c3
+          ../build/c3c compile-run examples/hello_world_many.c3
+          ../build/c3c compile-run examples/time.c3
+          ../build/c3c compile-run examples/fannkuch-redux.c3
+          ../build/c3c compile-run examples/contextfree/boolerr.c3
+          ../build/c3c compile-run examples/load_world.c3
+          ../build/c3c compile-run examples/process.c3
+          ../build/c3c compile-run examples/ls.c3
+          ../build/c3c compile-run examples/args.c3 -- foo -bar "baz baz"
 
-          name: Compile and run dynlib-test
-          run: |
-            cd resources/examples/dynlib-test
-            ../../../build/c3c -vv dynamic-lib add.c3
-            mv add.so libadd.so
-            cc test.c -L. -ladd -Wl,-rpath=.
+      - name: Compile and run dynlib-test
+        run: |
+          cd resources/examples/dynlib-test
+          ../../../build/c3c -vv dynamic-lib add.c3
+          mv add.so libadd.so
+          cc test.c -L. -ladd -Wl,-rpath=.
+          ./a.out
+          ../../../build/c3c compile-run test.c3 -L . -l add -z -Wl,-rpath=.
+
+      - name: Compile and run staticlib-test
+        run: |
+            cd resources/examples/staticlib-test
+            ../../../build/c3c -vv static-lib add.c3
+            mv add.a libadd.a
+            cc test.c -L. -ladd
             ./a.out
-            ../../../build/c3c compile-run test.c3 -L . -l add -z -Wl,-rpath=.
+            ../../../build/c3c compile-run test.c3 -L . -l add
 
-          name: Compile and run staticlib-test
-          run: |
-              cd resources/examples/staticlib-test
-              ../../../build/c3c -vv static-lib add.c3
-              mv add.a libadd.a
-              cc test.c -L. -ladd
-              ./a.out
-              ../../../build/c3c compile-run test.c3 -L . -l add
-
-          name: Compile run unit tests
-          run: |
-              cd test
-              ../build/c3c --max-mem 128 compile-test unit -D SLOW_TESTS
-
-          name: Build testproject
-          run: |
-            cd resources/testproject
-            ../../build/c3c run -vvv --trust=full
-
-          name: Test WASM
-          run: |
-            cd resources/testfragments
-            ../../build/c3c compile --target wasm32 -g0 --no-entry -Os wasm4.c3
-
-          name: Build testproject direct linker
-          run: |
-            cd resources/testproject
-            ../../build/c3c run -vvv --linker=builtin --trust=full
-
-          name: Init a library & a project
-          run: |
-            ./build/c3c init-lib mylib
-            ls mylib.c3l
-            ./build/c3c init myproject
-            ls myproject
-
-          name: run compiler tests
-          run: |
+      - name: Compile run unit tests
+        run: |
             cd test
-            ../build/c3c --max-mem 128 compile-run -O1 src/test_suite_runner.c3 -- ../build/c3c  test_suite/ --no-terminal
+            ../build/c3c --max-mem 128 compile-test unit -D SLOW_TESTS
+
+      - name: Build testproject
+        run: |
+          cd resources/testproject
+          ../../build/c3c run -vvv --trust=full
+
+      - name: Test WASM
+        run: |
+          cd resources/testfragments
+          ../../build/c3c compile --target wasm32 -g0 --no-entry -Os wasm4.c3
+
+      - name: Build testproject direct linker
+        run: |
+          cd resources/testproject
+          ../../build/c3c run -vvv --linker=builtin --trust=full
+
+      - name: Init a library & a project
+        run: |
+          ./build/c3c init-lib mylib
+          ls mylib.c3l
+          ./build/c3c init myproject
+          ls myproject
+
+      - name: run compiler tests
+        run: |
+          cd test
+          ../build/c3c --max-mem 128 compile-run -O1 src/test_suite_runner.c3 -- ../build/c3c  test_suite/ --no-terminal
 
       - name: bundle_output
         run: |
@@ -1084,97 +1085,97 @@ jobs:
           prepare: |
             /usr/sbin/pkg_add cmake llvm-19.1.7 lld-19.1.7nb1 ninja
 
-          name: CMake
-          run: |
-            cmake -B build \
-              -G Ninja \
-              -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-              -DLLVM_ENABLE_LIBXML2=OFF \
-              -DC3_LLVM_VERSION=${LLVM_RELEASE_VERSION_OPENBSD}
-            cmake --build build )
+      - name: CMake
+        run: |
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+            -DLLVM_ENABLE_LIBXML2=OFF \
+            -DC3_LLVM_VERSION=${LLVM_RELEASE_VERSION_OPENBSD}
+          cmake --build build )
 
-          name: Compile and run some examples
-          run: |
+      - name: Compile and run some examples
+        run: |
 
-            cd resources
-            ../build/c3c compile examples/base64.c3
-            ../build/c3c compile examples/binarydigits.c3
-            ../build/c3c compile examples/brainfk.c3
-            ../build/c3c compile examples/factorial_macro.c3
-            ../build/c3c compile examples/fasta.c3
-            ../build/c3c compile examples/gameoflife.c3
-            ../build/c3c compile examples/hash.c3
-            ../build/c3c compile-only examples/levenshtein.c3
-            ../build/c3c compile examples/load_world.c3
-            ../build/c3c compile-only examples/map.c3
-            ../build/c3c compile examples/mandelbrot.c3
-            ../build/c3c compile examples/plus_minus.c3
-            ../build/c3c compile examples/nbodies.c3
-            ../build/c3c compile examples/spectralnorm.c3
-            ../build/c3c compile examples/swap.c3
-            ../build/c3c compile examples/contextfree/boolerr.c3
-            ../build/c3c compile examples/contextfree/dynscope.c3
-            ../build/c3c compile examples/contextfree/guess_number.c3
-            ../build/c3c compile examples/contextfree/multi.c3
-            ../build/c3c compile examples/contextfree/cleanup.c3
-            ../build/c3c compile-run examples/hello_world_many.c3
-            ../build/c3c compile-run examples/time.c3
-            ../build/c3c compile-run examples/fannkuch-redux.c3
-            ../build/c3c compile-run examples/contextfree/boolerr.c3
-            ../build/c3c compile-run examples/load_world.c3
-            ../build/c3c compile-run examples/process.c3
-            ../build/c3c compile-run examples/ls.c3
-            ../build/c3c compile-run examples/args.c3 -- foo -bar "baz baz"
+          cd resources
+          ../build/c3c compile examples/base64.c3
+          ../build/c3c compile examples/binarydigits.c3
+          ../build/c3c compile examples/brainfk.c3
+          ../build/c3c compile examples/factorial_macro.c3
+          ../build/c3c compile examples/fasta.c3
+          ../build/c3c compile examples/gameoflife.c3
+          ../build/c3c compile examples/hash.c3
+          ../build/c3c compile-only examples/levenshtein.c3
+          ../build/c3c compile examples/load_world.c3
+          ../build/c3c compile-only examples/map.c3
+          ../build/c3c compile examples/mandelbrot.c3
+          ../build/c3c compile examples/plus_minus.c3
+          ../build/c3c compile examples/nbodies.c3
+          ../build/c3c compile examples/spectralnorm.c3
+          ../build/c3c compile examples/swap.c3
+          ../build/c3c compile examples/contextfree/boolerr.c3
+          ../build/c3c compile examples/contextfree/dynscope.c3
+          ../build/c3c compile examples/contextfree/guess_number.c3
+          ../build/c3c compile examples/contextfree/multi.c3
+          ../build/c3c compile examples/contextfree/cleanup.c3
+          ../build/c3c compile-run examples/hello_world_many.c3
+          ../build/c3c compile-run examples/time.c3
+          ../build/c3c compile-run examples/fannkuch-redux.c3
+          ../build/c3c compile-run examples/contextfree/boolerr.c3
+          ../build/c3c compile-run examples/load_world.c3
+          ../build/c3c compile-run examples/process.c3
+          ../build/c3c compile-run examples/ls.c3
+          ../build/c3c compile-run examples/args.c3 -- foo -bar "baz baz"
 
-          name: Compile and run dynlib-test
-          run: |
-            cd resources/examples/dynlib-test
-            ../../../build/c3c -vv dynamic-lib add.c3
-            mv add.so libadd.so
-            cc test.c -L. -ladd -Wl,-rpath=.
+      - name: Compile and run dynlib-test
+        run: |
+          cd resources/examples/dynlib-test
+          ../../../build/c3c -vv dynamic-lib add.c3
+          mv add.so libadd.so
+          cc test.c -L. -ladd -Wl,-rpath=.
+          ./a.out
+          ../../../build/c3c compile-run test.c3 -L . -l add -z -Wl,-rpath=.
+
+      - name: Compile and run staticlib-test
+        run: |
+            cd resources/examples/staticlib-test
+            ../../../build/c3c -vv static-lib add.c3
+            mv add.a libadd.a
+            cc test.c -L. -ladd
             ./a.out
-            ../../../build/c3c compile-run test.c3 -L . -l add -z -Wl,-rpath=.
+            ../../../build/c3c compile-run test.c3 -L . -l add
 
-          name: Compile and run staticlib-test
-          run: |
-              cd resources/examples/staticlib-test
-              ../../../build/c3c -vv static-lib add.c3
-              mv add.a libadd.a
-              cc test.c -L. -ladd
-              ./a.out
-              ../../../build/c3c compile-run test.c3 -L . -l add
-
-          name: Compile run unit tests
-          run: |
-              cd test
-              ../build/c3c --max-mem 128 compile-test unit -D SLOW_TESTS
-
-          name: Build testproject
-          run: |
-            cd resources/testproject
-            ../../build/c3c run -vvv --trust=full
-
-          name: Test WASM
-          run: |
-            cd resources/testfragments
-            ../../build/c3c compile --target wasm32 -g0 --no-entry -Os wasm4.c3
-
-          name: Build testproject direct linker
-          run: |
-            cd resources/testproject
-            ../../build/c3c run -vvv --linker=builtin --trust=full
-
-          name: Init a library & a project
-          run: |
-            ./build/c3c init-lib mylib
-            ls mylib.c3l
-            ./build/c3c init myproject
-            ls myproject
-
-          name: run compiler tests
-          run: |
+      - name: Compile run unit tests
+        run: |
             cd test
-            ../build/c3c --max-mem 128 compile-run -O1 src/test_suite_runner.c3 -- ../build/c3c  test_suite/ --no-terminal
+            ../build/c3c --max-mem 128 compile-test unit -D SLOW_TESTS
+
+      - name: Build testproject
+        run: |
+          cd resources/testproject
+          ../../build/c3c run -vvv --trust=full
+
+      - name: Test WASM
+        run: |
+          cd resources/testfragments
+          ../../build/c3c compile --target wasm32 -g0 --no-entry -Os wasm4.c3
+
+      - name: Build testproject direct linker
+        run: |
+          cd resources/testproject
+          ../../build/c3c run -vvv --linker=builtin --trust=full
+
+      - name: Init a library & a project
+        run: |
+          ./build/c3c init-lib mylib
+          ls mylib.c3l
+          ./build/c3c init myproject
+          ls myproject
+
+      - name: run compiler tests
+        run: |
+          cd test
+          ../build/c3c --max-mem 128 compile-run -O1 src/test_suite_runner.c3 -- ../build/c3c  test_suite/ --no-terminal
 
       - name: bundle_output
         run: |
@@ -1192,54 +1193,54 @@ jobs:
           name: c3-netbsd-${{matrix.build_type}}
           path: c3-netbsd-${{matrix.build_type}}.tar.gz
 
-  release:
-    runs-on: ubuntu-22.04
-    needs: [build-msvc, build-linux, build-mac, build-linux-ubuntu22]
-    if: github.ref == 'refs/heads/master'
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # release:
+  #   runs-on: ubuntu-22.04
+  #   needs: [build-msvc, build-linux, build-mac, build-linux-ubuntu22]
+  #   if: github.ref == 'refs/heads/master'
+  #   env:
+  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-      - run: cp -r lib c3-windows-Release
-      - run: cp -r lib c3-windows-Debug
-      - run: cp msvc_build_libraries.py c3-windows-Release
-      - run: cp msvc_build_libraries.py c3-windows-Debug
-      - run: cp README.md c3-windows-Release
-      - run: cp README.md c3-windows-Debug
-      - run: cp releasenotes.md c3-windows-Release
-      - run: cp releasenotes.md c3-windows-Debug
-      - run: zip -r c3-windows.zip c3-windows-Release
-      - run: zip -r c3-windows-debug.zip c3-windows-Debug
-      - run: mv c3-linux-Release/c3-linux-Release.tar.gz c3-linux-Release/c3-linux.tar.gz
-      - run: mv c3-linux-Debug/c3-linux-Debug.tar.gz c3-linux-Debug/c3-linux-debug.tar.gz
-      - run: mv c3-openbsd-Release/c3-openbsd-Release.tar.gz c3-openbsd-Release/c3-openbsd.tar.gz
-      - run: mv c3-openbsd-Debug/c3-openbsd-Debug.tar.gz c3-openbsd-Debug/c3-openbsd-debug.tar.gz
-      - run: mv c3-ubuntu-22-Release/c3-ubuntu-22-Release.tar.gz c3-ubuntu-22-Release/c3-ubuntu-22.tar.gz
-      - run: mv c3-ubuntu-22-Debug/c3-ubuntu-22-Debug.tar.gz c3-ubuntu-22-Debug/c3-ubuntu-22-debug.tar.gz
-      - run: mv c3-macos-Release/c3-macos-Release.zip c3-macos-Release/c3-macos.zip
-      - run: mv c3-macos-Debug/c3-macos-Debug.zip c3-macos-Debug/c3-macos-debug.zip
-      - run: gh release delete latest-prerelease-tag --cleanup-tag -y || true
-      - run: echo "RELEASE_NAME=latest-prerelease-$(date +'%Y%m%d-%H%M')" >> $GITHUB_ENV
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/download-artifact@v4
+  #     - run: cp -r lib c3-windows-Release
+  #     - run: cp -r lib c3-windows-Debug
+  #     - run: cp msvc_build_libraries.py c3-windows-Release
+  #     - run: cp msvc_build_libraries.py c3-windows-Debug
+  #     - run: cp README.md c3-windows-Release
+  #     - run: cp README.md c3-windows-Debug
+  #     - run: cp releasenotes.md c3-windows-Release
+  #     - run: cp releasenotes.md c3-windows-Debug
+  #     - run: zip -r c3-windows.zip c3-windows-Release
+  #     - run: zip -r c3-windows-debug.zip c3-windows-Debug
+  #     - run: mv c3-linux-Release/c3-linux-Release.tar.gz c3-linux-Release/c3-linux.tar.gz
+  #     - run: mv c3-linux-Debug/c3-linux-Debug.tar.gz c3-linux-Debug/c3-linux-debug.tar.gz
+  #     - run: mv c3-openbsd-Release/c3-openbsd-Release.tar.gz c3-openbsd-Release/c3-openbsd.tar.gz
+  #     - run: mv c3-openbsd-Debug/c3-openbsd-Debug.tar.gz c3-openbsd-Debug/c3-openbsd-debug.tar.gz
+  #     - run: mv c3-ubuntu-22-Release/c3-ubuntu-22-Release.tar.gz c3-ubuntu-22-Release/c3-ubuntu-22.tar.gz
+  #     - run: mv c3-ubuntu-22-Debug/c3-ubuntu-22-Debug.tar.gz c3-ubuntu-22-Debug/c3-ubuntu-22-debug.tar.gz
+  #     - run: mv c3-macos-Release/c3-macos-Release.zip c3-macos-Release/c3-macos.zip
+  #     - run: mv c3-macos-Debug/c3-macos-Debug.zip c3-macos-Debug/c3-macos-debug.zip
+  #     - run: gh release delete latest-prerelease-tag --cleanup-tag -y || true
+  #     - run: echo "RELEASE_NAME=latest-prerelease-$(date +'%Y%m%d-%H%M')" >> $GITHUB_ENV
 
-      - id: create_release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: latest-prerelease-tag
-          name: ${{ env.RELEASE_NAME }}
-          draft: false
-          prerelease: true
-          files: |
-            c3-windows.zip
-            c3-windows-debug.zip
-            c3-linux-Release/c3-linux.tar.gz
-            c3-linux-Debug/c3-linux-debug.tar.gz
-            c3-openbsd-Release/c3-openbsd.tar.gz
-            c3-openbsd-Debug/c3-openbsd-debug.tar.gz
-            c3-ubuntu-22-Release/c3-ubuntu-22.tar.gz
-            c3-ubuntu-22-Debug/c3-ubuntu-22-debug.tar.gz
-            c3-macos-Release/c3-macos.zip
-            c3-macos-Debug/c3-macos-debug.zip
+  #     - id: create_release
+  #       uses: softprops/action-gh-release@v2
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         tag_name: latest-prerelease-tag
+  #         name: ${{ env.RELEASE_NAME }}
+  #         draft: false
+  #         prerelease: true
+  #         files: |
+  #           c3-windows.zip
+  #           c3-windows-debug.zip
+  #           c3-linux-Release/c3-linux.tar.gz
+  #           c3-linux-Debug/c3-linux-debug.tar.gz
+  #           c3-openbsd-Release/c3-openbsd.tar.gz
+  #           c3-openbsd-Debug/c3-openbsd-debug.tar.gz
+  #           c3-ubuntu-22-Release/c3-ubuntu-22.tar.gz
+  #           c3-ubuntu-22-Debug/c3-ubuntu-22-debug.tar.gz
+  #           c3-macos-Release/c3-macos.zip
+  #           c3-macos-Debug/c3-macos-debug.zip

@@ -966,7 +966,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
             -DLLVM_ENABLE_LIBXML2=OFF \
             -DC3_LLVM_VERSION=${LLVM_RELEASE_VERSION_OPENBSD}
-          cmake --build build )
+          cmake --build build
 
       - name: Compile and run some examples
         run: |
@@ -1092,7 +1092,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
             -DLLVM_ENABLE_LIBXML2=OFF \
             -DC3_LLVM_VERSION=${LLVM_RELEASE_VERSION_OPENBSD}
-          cmake --build build )
+          cmake --build build
 
       - name: Compile and run some examples
         run: |

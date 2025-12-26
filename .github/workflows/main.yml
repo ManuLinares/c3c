@@ -952,7 +952,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: NetBSD VM
+      - name: OpenBSD VM
         uses: vmactions/openbsd-vm@v1
         with:
           prepare: |
@@ -1024,14 +1024,14 @@ jobs:
           mv add.a libadd.a
           cc test.c -L. -ladd
           ./a.out
-          ../../../build/c3c compile-run --cc clang test.c3 -L . -l add
+          ../../../build/c3c compile-run --linker=builtin test.c3 -L . -l add
 
       - name: Compile run unit tests
         shell: openbsd {0}
         run: |
           cd "$GITHUB_WORKSPACE"
           cd test
-          ../build/c3c --max-mem 1152 compile-test unit -O1 -D SLOW_TESTS
+          ../build/c3c --linker=builtin --max-mem 1152 compile-test unit -O1 -D SLOW_TESTS
 
       - name: Build testproject
         shell: openbsd {0}

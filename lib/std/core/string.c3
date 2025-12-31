@@ -1209,3 +1209,8 @@ fn String? Splitter.next(&self)
 		return remaining;
 	}
 }
+
+fn bool Splitter.at_end(&self)
+{
+    return self.current > self.string.len;
+}

@@ -169,7 +169,7 @@ macro bool @typeis(#value, $Type) @const @builtin @deprecated("Use `$typeof(#val
 }
 
 
-fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_backtrace = null) @if (env::NATIVE_STACKTRACE) => @stack_mem(0x1100; Allocator smem)
+fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_backtrace = null) @if (env::NATIVE_STACKTRACE)
 {
 	void*[256] buffer;
 	void*[] backtraces = backtrace::capture_current(&buffer);
@@ -177,7 +177,7 @@ fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_ba
 	{
 		backtraces[++backtraces_to_ignore] = added_backtrace;
 	}
-	@stack_mem(2048; Allocator mem)
+	@stack_mem(8096; Allocator mem)
 	{
 		BacktraceList? backtrace = backtrace::symbolize_backtrace(mem, backtraces);
 		if (catch backtrace) return false;

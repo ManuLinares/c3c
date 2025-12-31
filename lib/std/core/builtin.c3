@@ -175,12 +175,14 @@ macro int panic_print_backtrace_count(BacktraceList backtrace, int backtraces_to
 			case "std.core.builtin.print_backtrace":
 			case "std.core.builtin.default_panic":
 			case "std.core.builtin.panicf":
-				break;
+				backtraces_to_ignore++;
+			case "__GI___sigaction":
+				backtraces_to_ignore = i + 1;
 			default:
-				return i - backtraces_to_ignore;
+				break;
 		}
 	}
-	return (int) backtrace.len() - backtraces_to_ignore;
+	return backtraces_to_ignore;
 }
 
 fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_backtrace = null) @if (env::NATIVE_STACKTRACE) => @stack_mem(0x1100; Allocator smem)
@@ -195,7 +197,7 @@ fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_ba
 	{
 		BacktraceList? backtrace = backtrace::symbolize_backtrace(mem, backtraces);
 		if (catch backtrace) return false;
-		backtraces_to_ignore += panic_print_backtrace_count(backtrace, backtraces_to_ignore);
+		backtraces_to_ignore = panic_print_backtrace_count(backtrace, backtraces_to_ignore);
 		if (backtrace.len() <= backtraces_to_ignore) return false;
 		io::eprint("\nERROR: '");
 		io::eprint(message);

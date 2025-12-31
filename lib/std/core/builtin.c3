@@ -168,17 +168,19 @@ macro bool @typeis(#value, $Type) @const @builtin @deprecated("Use `$typeof(#val
 	return $typeof(#value).typeid == $Type.typeid;
 }
 
-macro int panic_print_backtrace_count(BacktraceList backtrace, int backtraces_to_ignore)
+fn int panic_print_backtrace_count(BacktraceList backtrace, int backtraces_to_ignore)
 {
+	bool inside_builtin_panic_skipped = true;
 	for (int i = backtraces_to_ignore; i < backtrace.len(); i++) {
 		switch (backtrace[i].function) {
 			case "std.core.builtin.print_backtrace":
 			case "std.core.builtin.default_panic":
 			case "std.core.builtin.panicf":
-				backtraces_to_ignore++;
+				if (inside_builtin_panic_skipped) backtraces_to_ignore++;
 			case "__GI___sigaction":
 				backtraces_to_ignore = i + 1;
 			default:
+				inside_builtin_panic_skipped = false;
 				break;
 		}
 	}
@@ -205,6 +207,7 @@ fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_ba
 		for (int i = backtraces_to_ignore; i < backtrace.len(); i++)
 		{
 			Backtrace* trace = &backtrace[i];
+			if (i > 0 && *trace == backtrace[(usz)i-1]) continue;
 			if (trace.file.ends_with("/lib/std/core/private/main_stub.c3")) break;
 			String inline_suffix = trace.is_inline ? " [inline]" : "";
 			if (trace.is_unknown())

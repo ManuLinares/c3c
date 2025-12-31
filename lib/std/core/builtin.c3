@@ -168,6 +168,20 @@ macro bool @typeis(#value, $Type) @const @builtin @deprecated("Use `$typeof(#val
 	return $typeof(#value).typeid == $Type.typeid;
 }
 
+macro int panic_print_backtrace_count(BacktraceList backtrace, int backtraces_to_ignore)
+{
+	for (int i = backtraces_to_ignore; i < backtrace.len(); i++) {
+		switch (backtrace[i].function) {
+			case "std.core.builtin.print_backtrace":
+			case "std.core.builtin.default_panic":
+			case "std.core.builtin.panicf":
+				break;
+			default:
+				return i - backtraces_to_ignore;
+		}
+	}
+	return (int) backtrace.len() - backtraces_to_ignore;
+}
 
 fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_backtrace = null) @if (env::NATIVE_STACKTRACE) => @stack_mem(0x1100; Allocator smem)
 {
@@ -181,13 +195,15 @@ fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_ba
 	{
 		BacktraceList? backtrace = backtrace::symbolize_backtrace(mem, backtraces);
 		if (catch backtrace) return false;
+		backtraces_to_ignore += panic_print_backtrace_count(backtrace, backtraces_to_ignore);
 		if (backtrace.len() <= backtraces_to_ignore) return false;
 		io::eprint("\nERROR: '");
 		io::eprint(message);
 		io::eprintn("'");
-		foreach (i, &trace : backtrace)
+		for (int i = backtraces_to_ignore; i < backtrace.len(); i++)
 		{
-			if (i < backtraces_to_ignore) continue;
+			Backtrace* trace = &backtrace[i];
+			if (trace.file.ends_with("/lib/std/core/private/main_stub.c3")) break;
 			String inline_suffix = trace.is_inline ? " [inline]" : "";
 			if (trace.is_unknown())
 			{
@@ -203,7 +219,6 @@ fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_ba
 		}
 	};
 	return true;
-
 }
 
 fn void default_panic(String message, String file, String function, uint line) @if(env::NATIVE_STACKTRACE)
@@ -453,7 +468,7 @@ macro @prefetch(void* ptr, PrefetchLocality $locality = VERY_NEAR, bool $write =
 
 <*
  Shuffle a vector by its index
- 
+
  int[<4>] a = { 1, 2, 3, 4 };
  assert(swizzle(a, 0, 1, 1, 3) == (int[<4>]) { 1, 2, 2, 4 });
 *>

@@ -204,10 +204,9 @@ fn bool print_backtrace(String message, int backtraces_to_ignore, void *added_ba
 		io::eprint("\nERROR: '");
 		io::eprint(message);
 		io::eprintn("'");
-		for (int i = backtraces_to_ignore; i < backtrace.len(); i++)
+		foreach (i, &trace : backtrace)
 		{
-			Backtrace* trace = &backtrace[i];
-			if (i > 0 && *trace == backtrace[(usz)i-1]) continue;
+			if (i < backtraces_to_ignore) continue;
 			if (trace.file.ends_with("/lib/std/core/private/main_stub.c3")) break;
 			String inline_suffix = trace.is_inline ? " [inline]" : "";
 			if (trace.is_unknown())

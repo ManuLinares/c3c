@@ -613,32 +613,28 @@ static void linker_setup_bsd(const char ***args_ref, Linker linker_type, bool is
 	}
 	if (is_pie_pic(compiler.platform.reloc_model))
 	{
-		add_concat_file_arg(crt_dir, "crti.o");
+		if (compiler.platform.os != OS_TYPE_OPENBSD) add_concat_file_arg(crt_dir, "crti.o");
 		if (!is_dylib)
 		{
-			if (compiler.platform.os == OS_TYPE_NETBSD)
-				add_concat_file_arg(crt_dir, "Scrt1.o");
-			else
-				add_concat_file_arg(crt_dir, "Scrt1.o"); // OpenBSD/FreeBSD PIE
+			if (compiler.platform.os == OS_TYPE_OPENBSD) add_concat_file_arg(crt_dir, "Scrt1.o");
 		}
 		add_concat_file_arg(crt_dir, "crtbeginS.o");
 		add_concat_file_arg(crt_dir, "crtendS.o");
 	}
 	else
 	{
-		add_concat_file_arg(crt_dir, "crti.o");
+		if (compiler.platform.os != OS_TYPE_OPENBSD) add_concat_file_arg(crt_dir, "crti.o");
 		if (!is_dylib)
 		{
 			if (compiler.platform.os == OS_TYPE_NETBSD)
 				add_concat_file_arg(crt_dir, "crt0.o");
 			else
-				add_concat_file_arg(crt_dir, "crt1.o"); // FreeBSD/OpenBSD
+				add_concat_file_arg(crt_dir, "crt1.o");
 		}
 		add_concat_file_arg(crt_dir, "crtbegin.o");
 		add_concat_file_arg(crt_dir, "crtend.o");
 	}
 
-	// Only include crtn.o for NetBSD and FreeBSD
 	if (compiler.platform.os != OS_TYPE_OPENBSD)
 		add_concat_file_arg(crt_dir, "crtn.o");
 

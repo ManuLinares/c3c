@@ -613,37 +613,45 @@ static void linker_setup_bsd(const char ***args_ref, Linker linker_type, bool is
 	}
 	if (is_pie_pic(compiler.platform.reloc_model))
 	{
-		if (!is_dylib) add_plain_arg("-pie");
 		add_concat_file_arg(crt_dir, "crti.o");
-		if (!is_dylib && compiler.platform.os == OS_TYPE_NETBSD)
+		if (!is_dylib)
 		{
-			add_concat_file_arg(crt_dir, "crt0.o");
-		}
-		else if (!is_dylib)
-		{
-			add_concat_file_arg(crt_dir, "Scrt1.o");
+			if (compiler.platform.os == OS_TYPE_NETBSD)
+				add_concat_file_arg(crt_dir, "Scrt1.o");
+			else
+				add_concat_file_arg(crt_dir, "Scrt1.o"); // OpenBSD/FreeBSD PIE
 		}
 		add_concat_file_arg(crt_dir, "crtbeginS.o");
 		add_concat_file_arg(crt_dir, "crtendS.o");
 	}
 	else
 	{
-		const char *crt_o = compiler.platform.os == OS_TYPE_NETBSD ? "crt0.o" : "crt1.o";
 		add_concat_file_arg(crt_dir, "crti.o");
-		if (!is_dylib) add_concat_file_arg(crt_dir, crt_o);
+		if (!is_dylib)
+		{
+			if (compiler.platform.os == OS_TYPE_NETBSD)
+				add_concat_file_arg(crt_dir, "crt0.o");
+			else
+				add_concat_file_arg(crt_dir, "crt1.o"); // FreeBSD/OpenBSD
+		}
 		add_concat_file_arg(crt_dir, "crtbegin.o");
 		add_concat_file_arg(crt_dir, "crtend.o");
 	}
-	add_concat_file_arg(crt_dir, "crtn.o");
+
+	// Only include crtn.o for NetBSD and FreeBSD
+	if (compiler.platform.os != OS_TYPE_OPENBSD)
+		add_concat_file_arg(crt_dir, "crtn.o");
+
 	add_concat_quote_arg("-L", crt_dir);
 	switch (compiler.platform.os)
 	{
 		case OS_TYPE_NETBSD:
 			add_plain_arg("--dynamic-linker=/usr/libexec/ld.elf_so");
-			/* The following two flags are needed to work around ld-elf.so not being
-			 * able to handle more than two PT_LOAD segments. */
-			if (is_dylib) add_plain_arg("--no-rosegment");
-			if (is_dylib) add_plain_arg("-znorelro");
+			if (is_dylib)
+			{
+				add_plain_arg("--no-rosegment");
+				add_plain_arg("-znorelro");
+			}
 			break;
 		case OS_TYPE_OPENBSD:
 			add_plain_arg("--dynamic-linker=/usr/libexec/ld.so");
@@ -653,9 +661,12 @@ static void linker_setup_bsd(const char ***args_ref, Linker linker_type, bool is
 			add_plain_arg("--dynamic-linker=/libexec/ld-elf.so.1");
 	}
 	linking_add_link(&compiler.linking, "c");
+	if (compiler.platform.os != OS_TYPE_OPENBSD)
+	{
+		linking_add_link(&compiler.linking, "gcc");
+		linking_add_link(&compiler.linking, "gcc_s");
+	}
 	if (compiler.linking.link_math) linking_add_link(&compiler.linking, "m");
-	linking_add_link(&compiler.linking, "gcc");
-	linking_add_link(&compiler.linking, "gcc_s");
 
 	add_plain_arg("-L/usr/lib/");
 	add_plain_arg("-m");

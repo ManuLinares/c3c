@@ -687,6 +687,19 @@ fn void test_file_threaded(any[] data)
 	};
 }
 
+fn void distribute_tests(any[] data)
+{
+	Path[] files = *anycast(data[0], Path[])!!;
+	TestOutput* outputs_base = *anycast(data[1], TestOutput*)!!;
+	usz start_index = *anycast(data[2], usz)!!;
+
+	foreach (i, file : files)
+	{
+		usz idx = start_index + i;
+		context.pool.push(&test_file_threaded, file, &outputs_base[idx], idx)!!;
+	}
+}
+
 /* --------------------------------------------------------------------- */
 /* ----------------------------- Main ---------------------------------- */
 /* --------------------------------------------------------------------- */
@@ -795,12 +808,21 @@ fn int main(String[] args)
 	context.pool.init(num_threads, context.total_test_files)!!;
 	defer context.pool.stop_and_destroy();
 
-	for (usz i = 0; i < context.total_test_files; i++)
+	usz chunk_size = (context.total_test_files + num_threads - 1) / num_threads;
+
+	for (usz i = 0; i < num_threads; i++)
 	{
-		context.pool.push(&test_file_threaded,
-			files_to_test[i],
-			&test_outputs[i],
-			i)!!;
+		usz start = i * chunk_size;
+		if (start >= context.total_test_files) break;
+
+		usz len = math::min(chunk_size, context.total_test_files - start);
+
+		Path[] chunk = files_to_test.array_view()[start : len];
+
+		context.pool.push(&distribute_tests,
+			chunk,
+			test_outputs.ptr,
+			start)!!;
 	}
 
 	while (context.success_count.load() + context.failure_count.load() + context.skip_count.load() < context.total_test_files)

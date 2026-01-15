@@ -28,7 +28,7 @@
 	}
  ```
 *>
-module std::experimental::frame_scheduler{Event} @if (env::POSIX || env::WIN32);
+module std::experimental::frame_scheduler<Event>;
 import std::collections, std::thread, std::time;
 
 struct DelayedSchedulerEvent @local

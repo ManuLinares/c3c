@@ -100,6 +100,8 @@ run_examples() {
     fi
     
     "$C3C_BIN" compile --no-entry --test -g --threads 1 --target macos-x64 examples/constants.c3
+
+    "$C3C_BIN" compile-run examples/schedulers/fixedpool_stress_test.c3
 }
 
 run_cli_tests() {

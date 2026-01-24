@@ -102,7 +102,7 @@ fn void? FixedThreadPool.join(&self) @maydiscard
 *>
 fn void? FixedThreadPool.push(&self, ThreadPoolFn func, args...)
 {
-	if (!self.initialized.load() || self.stop.load()) return thread::THREAD_QUEUE_FULL?;
+	if (!self.initialized.load() || self.stop.load()) return thread::THREAD_QUEUE_FULL~;
 
 	// 1. Prepare Data
 	any[] data;
@@ -138,7 +138,7 @@ fn void? FixedThreadPool.push(&self, ThreadPoolFn func, args...)
 			self.global_mu.unlock();
 			self.active_jobs.sub(1);
 			free_qitem(item);
-			return thread::THREAD_QUEUE_FULL?;
+			return thread::THREAD_QUEUE_FULL~;
 		}
 		self.global_mu.unlock();
 	}
@@ -151,7 +151,7 @@ fn void? FixedThreadPool.push(&self, ThreadPoolFn func, args...)
  Push a job, blocking the current thread if the queue is full.
  It yields the CPU to allow workers to drain the queue.
  
- Returns THREAD_QUEUE_FULL? only if the pool is stopped/destroyed.
+ Returns THREAD_QUEUE_FULL~ only if the pool is stopped/destroyed.
 *>
 macro void? FixedThreadPool.push_wait(&self, ThreadPoolFn func, args...)
 {
@@ -162,7 +162,7 @@ macro void? FixedThreadPool.push_wait(&self, ThreadPoolFn func, args...)
 
 		if (self.stop.load(RELAXED) || !self.initialized.load(RELAXED)) 
 		{
-			return thread::THREAD_QUEUE_FULL?;
+			return thread::THREAD_QUEUE_FULL~;
 		}
 
 		// If just full, we wait.

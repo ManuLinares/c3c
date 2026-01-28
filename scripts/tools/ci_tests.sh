@@ -126,6 +126,32 @@ run_cli_tests() {
     fi
 }
 
+run_fetch_msvc_tests() {
+    echo "--- Running fetch-msvc Tests ---"
+    "$C3C_BIN" fetch-msvc --help
+
+    if [ -n "$SKIP_NETWORK_TESTS" ]; then
+        echo "Skipping fetch-msvc download (network tests disabled)"
+        return
+    fi
+
+    "$C3C_BIN" fetch-msvc --show-versions
+
+    echo "Testing fetch-msvc download..."
+    mkdir -p "$ROOT_DIR/msvc_test"
+    cd "$ROOT_DIR/msvc_test"
+
+    "$C3C_BIN" fetch-msvc --accept-license -v
+
+    if [ -d "msvc_sdk" ]; then
+        echo "msvc_sdk directory created."
+        du -sh msvc_sdk || echo "du failed"
+    else
+        echo "Error: msvc_sdk directory not found."
+        exit 1
+    fi
+}
+
 run_dynlib_tests() {
     echo "--- Running Dynamic Lib Tests ---"
     # Skip openbsd, idk
@@ -216,6 +242,7 @@ run_unit_tests() {
 # --- Execution ---
 run_examples
 run_cli_tests
+run_fetch_msvc_tests
 run_dynlib_tests
 run_staticlib_tests
 run_testproject

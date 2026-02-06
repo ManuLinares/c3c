@@ -470,17 +470,21 @@ add_executable(c3c
         src/compiler/methodtable.c
         src/compiler/mac_support.c
         src/utils/fetch_msvc.c
+        src/utils/fetch_macossdk.c
         src/compiler/windows_support.c
         src/compiler/codegen_asm.c
         src/compiler/asm_target.c
         src/compiler/expr.c
         src/utils/time.c
+        src/utils/ui.c
         src/utils/http.c
         src/compiler/sema_liveness.c
         src/build/common_build.c
         src/compiler/sema_const.c
         ${CMAKE_BINARY_DIR}/git_hash.h
 )
+
+add_subdirectory(dependencies/lzma)
 
 if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
     # We are inside of a git repository so rebuilding the hash every time something changes.
@@ -577,7 +581,7 @@ else()
 endif()
 
 if(C3_WITH_LLVM)
-    target_link_libraries(c3c miniz c3c_wrappers)
+    target_link_libraries(c3c miniz lzma c3c_wrappers)
 
     target_include_directories(c3c PRIVATE
             "${CMAKE_SOURCE_DIR}/wrapper/include/")
@@ -589,7 +593,7 @@ if(C3_WITH_LLVM)
 
 else()
 
-    target_link_libraries(c3c miniz ${lld_libs} ${llvm_libs})
+    target_link_libraries(c3c miniz lzma ${lld_libs} ${llvm_libs})
 
 endif()
 
@@ -613,6 +617,10 @@ if (CURL_FOUND)
 else()
     target_compile_definitions(c3c PUBLIC CURL_FOUND=0)
 endif()
+
+target_link_libraries(c3c lzma)
+target_compile_definitions(c3c PUBLIC LIBLZMA_FOUND=1)
+target_include_directories(c3c PRIVATE dependencies/lzma/include)
 
 
 if(MSVC)

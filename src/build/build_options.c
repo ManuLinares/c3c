@@ -46,6 +46,7 @@ const char *arch_os_target[ARCH_OS_TARGET_LAST + 1];
 #define FAIL_WITH_ERR_LONG(string, ...) do { fprintf(stderr, "Error: " string "\n\n", ##__VA_ARGS__); usage(true); exit_compiler(EXIT_FAILURE); } while (0) /* NOLINT */
 #define PROJECT_FAIL_WITH_ERR(string, ...) do { fprintf(stderr, "Error: " string "\n\n", ##__VA_ARGS__); project_usage(); exit_compiler(EXIT_FAILURE); } while (0) /* NOLINT */
 #define FETCH_MSVC_FAIL_WITH_ERR(string, ...) do { fprintf(stderr, "Error: " string "\n\n", ##__VA_ARGS__);	fetch_msvc_usage();	exit_compiler(EXIT_FAILURE); } while (0) /* NOLINT */
+#define FETCH_MACOSSDK_FAIL_WITH_ERR(string, ...) do { fprintf(stderr, "Error: " string "\n\n", ##__VA_ARGS__);	fetch_macossdk_usage();	exit_compiler(EXIT_FAILURE); } while (0) /* NOLINT */
 
 static void usage(bool full)
 {
@@ -72,6 +73,7 @@ static void usage(bool full)
 	print_cmd("vendor-fetch <library> ...", "Fetches one or more libraries from the vendor collection.");
 	print_cmd("project <subcommand> ...", "Manipulate or view project files.");
 	print_cmd("fetch-msvc [<subcommand>]", "Fetches the MSVC SDK required for cross-compiling.");
+	print_cmd("fetch-macossdk <file.dmg>", "Fetches the MacOS SDK required for cross-compiling.");
 	PRINTF("");
 	full ? PRINTF("Options:") : PRINTF("Common options:");
 	print_opt("-h -hh --help", "Print the help, -h for the normal options, -hh for the full help.");
@@ -250,6 +252,24 @@ static void fetch_msvc_usage()
 	print_opt("--sdk-version <ver>",
 	          "Specify a particular Windows SDK version to fetch.");
 	PRINTF("");
+}
+
+static void fetch_macossdk_usage()
+{
+	PRINTF("Usage: %s fetch-macossdk <file.dmg>", args[0]);
+	PRINTF("");
+	PRINTF("Extracts and installs the MacOS SDK from the provided Command Line Tools DMG.");
+	PRINTF("");
+	PRINTF("The macOS SDK is required but cannot be redistributed by c3c.");
+	PRINTF("");
+	PRINTF("1. Download \"Command Line Tools for Xcode\" (.dmg) from:");
+	PRINTF("   https://developer.apple.com/download/all/?q=Command%%20Line%%20Tools%%20for%%20Xcode");
+	PRINTF("");
+	PRINTF("2. Extract the SDK by running:");
+	PRINTF("   c3c fetch-macossdk /path/to/Command_Line_Tools*.dmg");
+	PRINTF("");
+	PRINTF("By running this command, you confirm you have obtained the SDK from");
+	PRINTF("Apple and agree to Apple’s license terms.");
 }
 
 static void project_usage()
@@ -561,12 +581,41 @@ static void parse_command(BuildOptions *options)
 			}
 			FETCH_MSVC_FAIL_WITH_ERR("Unknown option '%s' for fetch-msvc", current_arg);
 		}
+
 		if (!at_end())
 		{
 			next_arg();
 			FETCH_MSVC_FAIL_WITH_ERR("fetch-msvc does not accept arguments, "
 			                         "only flags. Failed on: %s.",
 			                         current_arg);
+		}
+		return;
+	}
+	if (arg_match("fetch-macossdk"))
+	{
+		options->command = COMMAND_FETCH_MACOS_SDK;
+		if (at_end())
+		{
+			FETCH_MACOSSDK_FAIL_WITH_ERR("fetch-macossdk needs a .dmg file argument.");
+		}
+		while (!at_end())
+		{
+			if (match_longopt("help") || match_shortopt("h"))
+			{
+				fetch_macossdk_usage();
+				exit_compiler(COMPILER_SUCCESS_EXIT);
+			}
+			if (next_is_opt())
+			{
+				next_arg();
+				FETCH_MACOSSDK_FAIL_WITH_ERR("Unknown option '%s' for fetch-macossdk", current_arg);
+			}
+			vec_add(options->files, next_arg());
+		}
+		
+		if (vec_size(options->files) != 1)
+		{
+			FETCH_MACOSSDK_FAIL_WITH_ERR("fetch-macossdk expects exactly one .dmg file.");
 		}
 		return;
 	}

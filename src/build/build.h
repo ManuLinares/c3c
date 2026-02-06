@@ -49,6 +49,7 @@ typedef enum
 	COMMAND_PRINT_SYNTAX,
 	COMMAND_PROJECT,
 	COMMAND_FETCH_MSVC,
+	COMMAND_FETCH_MACOS_SDK,
 } CompilerCommand;
 
 typedef enum
@@ -923,6 +924,7 @@ extern const char *arch_os_target[ARCH_OS_TARGET_LAST + 1];
 extern LinuxLibc default_libc;
 
 void fetch_msvc(BuildOptions *options);
+void fetch_macossdk(BuildOptions *options);
 BuildOptions parse_arguments(int argc, const char *argv[]);
 ArchOsTarget arch_os_target_from_string(const char *target);
 bool command_accepts_files(CompilerCommand command);

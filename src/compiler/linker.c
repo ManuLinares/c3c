@@ -280,7 +280,26 @@ static void linker_setup_macos(const char ***args_ref, Linker linker_type)
 
 	if (!compiler.build.macos.sdk)
 	{
-		error_exit("Cannot crosslink MacOS without providing --macossdk.");
+		char *error_msg =
+			"The macOS SDK is required but cannot be redistributed by c3c.\n"
+			"\n"
+			"1. Download \"Command Line Tools for Xcode\" (.dmg) from:\n"
+			"   https://developer.apple.com/download/all/?q=Command%20Line%20Tools%20for%20Xcode\n"
+			"\n"
+			"2. Extract the SDK by running:\n"
+			"   c3c fetch-macossdk /path/to/Command_Line_Tools*.dmg\n"
+			"\n"
+			"By running this command, you confirm you have obtained the SDK from\n"
+			"Apple and agree to Apple’s license terms.";
+		puts(error_msg);
+		exit(1);
+	}
+	if (compiler.build.macos.sdk)
+	{
+		if (!compiler.build.quiet && !compiler.build.silent)
+		{
+			OUTF("Using macOS SDK at: %s\n", compiler.build.macos.sysroot);
+		}
 	}
 	linking_add_link(&compiler.linking, "System");
 	if (compiler.linking.link_math) linking_add_link(&compiler.linking, "m");
@@ -963,6 +982,7 @@ static bool link_exe(const char *output_file, const char **files_to_link, unsign
 	{
 		error_exit("Failed to create an executable: %s", error);
 	}
+	OUTF("Program linked to executable '%s'.\n", output_file);
 	INFO_LOG("Linking complete.");
 	return true;
 }

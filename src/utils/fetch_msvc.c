@@ -64,31 +64,6 @@ static char *get_sdk_output_path(void)
 static int verbose_level = 0;
 
 
-static void print_progress(int percent)
-{
-	if (verbose_level > 0) return;
-	int width = 40;
-	if (percent > 100) percent = 100;
-
-	printf("\rDownloading and extracting packages [");
-
-	const char *parts[] = { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉" };
-	int total_blocks = width * 8;
-	int filled_blocks = (percent * total_blocks) / 100;
-	int full_blocks = filled_blocks / 8;
-	int partial_block = filled_blocks % 8;
-
-	for (int i = 0; i < full_blocks; i++) printf("█");
-	if (full_blocks < width)
-	{
-		printf("%s", parts[partial_block]);
-		for (int i = full_blocks + 1; i < width; i++) printf(" ");
-	}
-
-	printf("] %3d%%", percent);
-	fflush(stdout);
-}
-
 // Minimal dirent-like structure for Windows
 #if PLATFORM_WINDOWS
 struct dirent
@@ -635,7 +610,7 @@ void fetch_msvc(BuildOptions *options)
 	}
 
 	int progress = 0;
-	if (verbose_level == 0) print_progress(progress);
+	if (verbose_level == 0) ui_print_progress("Downloading MSVC packages", 0);
 
 	const char *suffixes[] = {"asan.headers.base", "crt.x64.desktop.base", "crt.x64.store.base", "asan.x64.base"};
 	for (int i = 0; i < ELEMENTLEN(suffixes); i++)
@@ -655,7 +630,7 @@ void fetch_msvc(BuildOptions *options)
 			}
 		}
 		progress += 10;
-		print_progress(progress);
+		if (verbose_level == 0) ui_print_progress("Downloading MSVC packages", progress);
 	}
 
 	const char **cab_list = NULL;
@@ -678,7 +653,7 @@ void fetch_msvc(BuildOptions *options)
 		}
 	NEXT_MSI:
 		progress += 10;
-		print_progress(progress);
+		if (verbose_level == 0) ui_print_progress("Downloading MSVC packages", progress);
 	}
 
 	int cabs_done = 0;
@@ -701,22 +676,22 @@ void fetch_msvc(BuildOptions *options)
 		}
 	NEXT_CAB:
 		cabs_done++;
-		if (cab_count > 0) print_progress(70 + (20 * cabs_done) / cab_count);
+		if (cab_count > 0 && verbose_level == 0) ui_print_progress("Downloading MSVC packages", 70 + (20 * cabs_done) / cab_count);
 	}
 
 	for (int i = 0; i < ELEMENTLEN(msi_names); i++)
 	{
 		char *mpath = (char *)file_append_path(dl_root, msi_names[i]);
-		if (file_exists(mpath))
+		if (file_exists(mpath) && verbose_level == 0)
 		{
 			extract_msi(mpath, out_root, dl_root);
-			print_progress(90 + (10 * (i + 1)) / ELEMENTLEN(msi_names));
+			ui_print_progress("Downloading MSVC packages", 90 + (10 * (i + 1)) / ELEMENTLEN(msi_names));
 		}
 	}
 
 	if (verbose_level == 0)
 	{
-		print_progress(100);
+		ui_print_progress("Downloading MSVC packages", 100);
 		printf(" Done.\n");
 		fflush(stdout);
 	}

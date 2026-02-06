@@ -1,5 +1,32 @@
 #include "compiler_internal.h"
+#if !PLATFORM_WINDOWS
+#include <dirent.h>
+#endif
+#include "utils/whereami.h"
 #include "utils/json.h"
+
+static char *get_macos_sdk_output_path(void)
+{
+	char *env_path = NULL;
+#if PLATFORM_WINDOWS
+	env_path = getenv("LOCALAPPDATA");
+#else
+	env_path = getenv("XDG_CACHE_HOME");
+#endif
+
+	if (env_path)
+	{
+		return file_append_path(env_path, "c3/macos_sdk");
+	}
+
+#if !PLATFORM_WINDOWS
+	char *home = getenv("HOME");
+	if (home) return file_append_path(home, ".cache/c3/macos_sdk");
+#endif
+
+	const char *path = find_executable_path();
+	return file_append_path(path, "macos_sdk");
+}
 
 const char *macos_sysroot(void)
 {
@@ -9,6 +36,35 @@ const char *macos_sysroot(void)
 		if (file_is_dir(xcode_sysroot)) return xcode_sysroot;
 		if (file_is_dir(commandline_tool_sysroot)) return commandline_tool_sysroot;
 #endif
+	
+	// Search in cache
+	char *cache_path = get_macos_sdk_output_path();
+	if (file_is_dir(cache_path))
+	{
+		// Find the newest SDK
+		DIR *d = opendir(cache_path);
+		if (d)
+		{
+			struct dirent *de;
+			char *best_sdk = NULL;
+			while ((de = readdir(d)))
+			{
+				if (strstr(de->d_name, ".sdk"))
+				{
+					if (!best_sdk || strcmp(de->d_name, best_sdk) > 0)
+					{
+						best_sdk = str_dup(de->d_name);
+					}
+				}
+			}
+			closedir(d);
+			if (best_sdk)
+			{
+				return file_append_path(cache_path, best_sdk);
+			}
+		}
+	}
+
 	return NULL;
 }
 

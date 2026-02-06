@@ -137,6 +137,7 @@ void taskqueue_run(int threads, Task **task_list);
 int cpus(void);
 const char *date_get(void);
 const char *time_get(void);
+void ui_print_progress(const char *label, int percent);
 
 const char *str_remove_suffix(const char *name, const char *suffix);
 bool str_has_suffix(const char *name, const char *suffix);

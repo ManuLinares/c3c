@@ -136,6 +136,11 @@ int main_real(int argc, const char *argv[])
 			fetch_msvc(&build_options);
 			break;
 		}
+		case COMMAND_FETCH_MACOS_SDK:
+		{
+			fetch_macossdk(&build_options);
+			break;
+		}
 		case COMMAND_MISSING:
 			UNREACHABLE
 	}

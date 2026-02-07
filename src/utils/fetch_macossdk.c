@@ -4,6 +4,9 @@
 #else
 #define lstat stat
 #define S_ISLNK(m) 0
+#ifndef S_ISDIR
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
+#endif
 typedef long long ssize_t;
 #endif
 #include <stdio.h>
@@ -14,6 +17,9 @@ typedef long long ssize_t;
 #include "utils/lib.h"
 #include "utils/whereami.h"
 
+#ifndef LZMA_API_STATIC
+#define LZMA_API_STATIC
+#endif
 #include <lzma.h>
 #include "miniz.h"
 #include "utils/dirent_compat.h" // IWYU pragma: keep

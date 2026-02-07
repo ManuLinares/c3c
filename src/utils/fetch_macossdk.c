@@ -337,7 +337,12 @@ static void pbzx_extract(const char *pbzx_path, const char *out_dir, int range_s
 		{
 			uint64_t current = (uint64_t)ftell(in);
 			int p = range_start + (int)((range_end - range_start) * current / total_size);
-			ui_print_progress("Extracting macOS SDK", p);
+			static int last_p = -1;
+			if (p != last_p)
+			{
+				ui_print_progress("Extracting macOS SDK", p);
+				last_p = p;
+			}
 		}
 		
 		char magic_cpio[6];
@@ -649,6 +654,22 @@ static void extract_payloads(const char *pkg_data_dir, const char *out_dir)
 	}
 }
 
+static const char *find_7z_path(void)
+{
+#if PLATFORM_WINDOWS
+	if (system("7z >nul 2>nul") == 0) return "7z";
+	const char *paths[] = {
+		"C:\\Program Files\\7-Zip\\7z.exe",
+		"C:\\Program Files (x86)\\7-Zip\\7z.exe",
+	};
+	for (int i = 0; i < 2; i++)
+	{
+		if (file_exists(paths[i])) return paths[i];
+	}
+#endif
+	return "7z";
+}
+
 void fetch_macossdk(BuildOptions *options)
 {
 	verbose_level = options->verbosity_level;
@@ -680,7 +701,12 @@ void fetch_macossdk(BuildOptions *options)
 	
 	if (verbose_level == 0) ui_print_progress("Extracting macOS SDK", PROGRESS_START);
 	VERBOSE_PRINT(1, "Step 1: Extracting PKG from DMG (using 7z)...\n");
-	char *extract_cmd = str_printf("7z e -so \"%s\" \"Command Line Developer Tools/Command Line Tools*.pkg\" > \"%s\"", abs_dmg_path, pkg_tmp_path);
+	const char *z7_path = find_7z_path();
+#if PLATFORM_WINDOWS
+	char *extract_cmd = str_printf("\"\"%s\" e -so \"%s\" \"Command Line Developer Tools/Command Line Tools*.pkg\" > \"%s\"\"", z7_path, abs_dmg_path, pkg_tmp_path);
+#else
+	char *extract_cmd = str_printf("\"%s\" e -so \"%s\" \"Command Line Developer Tools/Command Line Tools*.pkg\" > \"%s\"", z7_path, abs_dmg_path, pkg_tmp_path);
+#endif
 	
 	if (system(extract_cmd) != 0)
 	{

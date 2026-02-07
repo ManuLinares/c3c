@@ -4,6 +4,7 @@
 #endif
 #include "utils/whereami.h"
 #include "utils/json.h"
+#include "utils/dirent_compat.h"
 
 static char *get_macos_sdk_output_path(void)
 {

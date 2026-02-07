@@ -22,6 +22,7 @@
 #include "json.h"
 #include "msi.h"
 #include "whereami.h"
+#include "dirent_compat.h"
 
 #ifndef MAX_PATH
 	#if defined(PATH_MAX)
@@ -62,54 +63,6 @@ static char *get_sdk_output_path(void)
 }
 
 static int verbose_level = 0;
-
-
-// Minimal dirent-like structure for Windows
-#if PLATFORM_WINDOWS
-struct dirent
-{
-	char d_name[MAX_PATH];
-};
-typedef struct
-{
-	HANDLE handle;
-	WIN32_FIND_DATAW data;
-	struct dirent entry;
-	bool first;
-} DIR;
-
-static DIR *opendir(const char *name)
-{
-	DIR *dir = calloc(1, sizeof(DIR));
-	char *search_path = str_printf("%s\\*", name);
-	uint16_t *wpath = win_utf8to16(search_path);
-	dir->handle = FindFirstFileW(wpath, &dir->data);
-	free(wpath);
-	if (dir->handle == INVALID_HANDLE_VALUE)
-	{
-		free(dir);
-		return NULL;
-	}
-	dir->first = true;
-	return dir;
-}
-
-static struct dirent *readdir(DIR *dir)
-{
-	if (!dir->first && !FindNextFileW(dir->handle, &dir->data)) return NULL;
-	dir->first = false;
-	char *name = win_utf16to8(dir->data.cFileName);
-	strncpy(dir->entry.d_name, name, MAX_PATH);
-	free(name);
-	return &dir->entry;
-}
-
-static void closedir(DIR *dir)
-{
-	if (dir) FindClose(dir->handle);
-	free(dir);
-}
-#endif
 
 #if FETCH_AVAILABLE
 

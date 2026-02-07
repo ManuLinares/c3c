@@ -1,3 +1,8 @@
+#if !PLATFORM_WINDOWS
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,14 +11,9 @@
 #include "utils/lib.h"
 #include "utils/whereami.h"
 
-#if !PLATFORM_WINDOWS
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
-
 #include <lzma.h>
 #include "miniz.h"
+#include "utils/dirent_compat.h"
 
 static int verbose_level = 0;
 
@@ -385,8 +385,17 @@ static void pbzx_extract(const char *pbzx_path, const char *out_dir, int range_s
 			char *target = malloc(filesize + 1);
 			cpio_read(&state, target, filesize);
 			target[filesize] = 0;
+#if !PLATFORM_WINDOWS
 			file_create_folders(path);
 			symlink(target, path);
+#else
+			// On Windows, copy the symlink target instead of creating a symlink
+			char *target_path = (char *)file_append_path(state.base_dir, target);
+			if (file_exists(target_path))
+			{
+				file_copy_file(target_path, path, true);
+			}
+#endif
 			free(target);
 		}
 		else if ((mode & 0170000) == 0100000) // Regular file
@@ -714,6 +723,7 @@ void fetch_macossdk(BuildOptions *options)
 					file_delete_dir(dst);
 					if (S_ISLNK(st.st_mode))
 					{
+#if !PLATFORM_WINDOWS
 						char link_target[4096];
 						ssize_t len = readlink(src, link_target, sizeof(link_target) - 1);
 						if (len != -1)
@@ -722,6 +732,7 @@ void fetch_macossdk(BuildOptions *options)
 							symlink(link_target, dst);
 						}
 						files_processed++; // Link counts as 1
+#endif
 					}
 					else if (S_ISDIR(st.st_mode))
 					{

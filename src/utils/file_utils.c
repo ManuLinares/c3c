@@ -63,37 +63,34 @@ uint16_t *win_path_to_utf16(const char *value)
 	const char *to_convert = value;
 	char *buf = NULL;
 
-	// Absolute paths on Windows should use the \\?\ prefix to support long paths (> 260 chars)
-	// We only apply this if the path is actually long (> 240 chars) and absolute to avoid
-	// compatibility issues with some CRT functions and SetCurrentDirectory.
-	bool is_abs = (len > 3 && char_is_letter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/'));
-	bool already_prefixed = (len > 4 && value[0] == '\\' && value[1] == '\\' && (value[2] == '?' || value[2] == '.'));
-
-	if (is_abs && !already_prefixed && len > 240)
+	// Always normalize paths on Windows to remove . segments and handle slash mixing.
+	// Windows API with \\?\ prefix is extremely strict.
+	char *normalized = malloc(len + 1);
+	size_t j = 0;
+	for (size_t i = 0; i < len; i++)
 	{
-		// Normalize the path: remove . and collapse slashes, as \\?\ is very strict.
-		char *normalized = malloc(len + 1);
-		size_t j = 0;
-		for (size_t i = 0; i < len; i++)
-		{
-			char c = value[i];
-			// Convert to backslash
-			if (c == '/') c = '\\';
-			// Collapse multiple backslashes
-			if (c == '\\' && j > 0 && normalized[j - 1] == '\\') continue;
-			// Skip /./
-			if (c == '.' && i > 0 && (value[i - 1] == '/' || value[i - 1] == '\\') && (value[i + 1] == '/' || value[i + 1] == '\\' || value[i + 1] == '\0')) continue;
-			normalized[j++] = c;
-		}
-		normalized[j] = '\0';
+		char c = value[i];
+		if (c == '/') c = '\\';
+		if (c == '\\' && j > 0 && normalized[j - 1] == '\\') continue;
+		if (c == '.' && i > 0 && (value[i - 1] == '/' || value[i - 1] == '\\') && (value[i + 1] == '/' || value[i + 1] == '\\' || value[i + 1] == '\0')) continue;
+		normalized[j++] = c;
+	}
+	normalized[j] = '\0';
+	to_convert = normalized;
 
+	// Absolute paths on Windows should use the \\?\ prefix to support long paths (> 260 chars)
+	bool is_abs = (j > 3 && char_is_letter(normalized[0]) && normalized[1] == ':' && normalized[2] == '\\');
+	bool already_prefixed = (j > 4 && normalized[0] == '\\' && normalized[1] == '\\' && (normalized[2] == '?' || normalized[2] == '.'));
+
+	if (is_abs && !already_prefixed && j > 240)
+	{
 		buf = malloc(j + 5);
 		sprintf(buf, "\\\\?\\%s", normalized);
-		free(normalized);
 		to_convert = buf;
 	}
 
 	uint16_t *result = win_utf8to16(to_convert);
+	free(normalized);
 	if (buf) free(buf);
 	return result;
 #else
@@ -175,7 +172,7 @@ const char *dir_make_temp_dir(void)
 bool dir_make_recursive(char *path)
 {
 	size_t len = strlen(path);
-	for (size_t i = len; i > 1; i--)
+	for (size_t i = len - 1; i > 1; i--)
 	{
 		char c = path[i];
 		if (c == '\\' || c == '/')
@@ -598,16 +595,25 @@ bool file_has_suffix_in_list(const char *file_name, int name_len, const char **s
 
 bool file_is_dir(const char *file)
 {
+#if PLATFORM_WINDOWS
+	DWORD dwAttrib = GetFileAttributesW(win_path_to_utf16(file));
+	return (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+#else
 	struct stat st;
 	if (stat(file, &st)) return false;
 	return S_ISDIR(st.st_mode);
+#endif
 }
 
 bool file_exists(const char *path)
 {
+#if PLATFORM_WINDOWS
+	return GetFileAttributesW(win_path_to_utf16(path)) != INVALID_FILE_ATTRIBUTES;
+#else
 	struct stat st;
 	if (stat(path, &st)) return false;
-	return S_ISDIR(st.st_mode) || S_ISREG(st.st_mode) || S_ISREG(st.st_mode);
+	return S_ISDIR(st.st_mode) || S_ISREG(st.st_mode);
+#endif
 }
 
 bool file_path_is_relative(const char *file_name)

@@ -6,9 +6,19 @@
 // Cross-platform directory iteration compatibility layer
 // Provides POSIX-like opendir/readdir/closedir on Windows
 
-#if PLATFORM_WINDOWS
+#if defined(_WIN32) || defined(_WIN64)
 
+#define WIN32_LEAN_AND_MEAN
+#ifndef TokenType
+#define TokenType WindowsTokenType
+#define MAX_PRIORITY WindowsMAX_PRIORITY
 #include <windows.h>
+#undef TokenType
+#undef MAX_PRIORITY
+#else
+#include <windows.h>
+#endif
+
 #include "lib.h"
 
 struct dirent

@@ -1,7 +1,13 @@
-#include "compiler_internal.h"
-#if !PLATFORM_WINDOWS
-#include <dirent.h>
+#if defined(_WIN32) || defined(_WIN64)
+#define WIN32_LEAN_AND_MEAN
+#define TokenType WindowsTokenType
+#define MAX_PRIORITY WindowsMAX_PRIORITY
+#include <windows.h>
+#undef TokenType
+#undef MAX_PRIORITY
 #endif
+
+#include "compiler_internal.h"
 #include "utils/whereami.h"
 #include "utils/json.h"
 #include "utils/dirent_compat.h"

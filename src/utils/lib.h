@@ -64,6 +64,7 @@ typedef struct Task_
 } Task;
 
 uint16_t *win_utf8to16(const char *name);
+uint16_t *win_path_to_utf16(const char *name);
 char *win_utf16to8(const uint16_t *name);
 // Use as if it was mkdir(..., 0755) == 0
 bool dir_make(const char *path);

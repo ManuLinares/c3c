@@ -56,6 +56,36 @@ uint16_t *win_utf8to16(const char *value UNUSED)
 #endif
 }
 
+uint16_t *win_path_to_utf16(const char *value)
+{
+#if PLATFORM_WINDOWS
+	size_t len = strlen(value);
+	const char *to_convert = value;
+	char *buf = NULL;
+
+	// Absolute paths on Windows should use the \\?\ prefix to support long paths (> 260 chars)
+	// We only apply this if the path is actually long (> 240 chars) and absolute to avoid
+	// compatibility issues with some CRT functions and SetCurrentDirectory.
+	bool is_abs = (len > 3 && char_is_letter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/'));
+	bool already_prefixed = (len > 4 && value[0] == '\\' && value[1] == '\\' && (value[2] == '?' || value[2] == '.'));
+
+	if (is_abs && !already_prefixed && len > 240)
+	{
+		buf = malloc(len + 5);
+		sprintf(buf, "\\\\?\\%s", value);
+		// Long path prefix requires backslashes
+		for (size_t i = 4; i < len + 4; i++) if (buf[i] == '/') buf[i] = '\\';
+		to_convert = buf;
+	}
+
+	uint16_t *result = win_utf8to16(to_convert);
+	if (buf) free(buf);
+	return result;
+#else
+	UNREACHABLE
+#endif
+}
+
 #include <wchar.h>
 char *win_utf16to8(const uint16_t *wname UNUSED)
 {
@@ -80,7 +110,7 @@ char *win_utf16to8(const uint16_t *wname UNUSED)
 bool dir_make(const char *path)
 {
 #if (_MSC_VER)
-	return CreateDirectoryW(win_utf8to16(path), NULL);
+	return CreateDirectoryW(win_path_to_utf16(path), NULL);
 #else
 	return mkdir(path, 0755) == 0;
 #endif
@@ -147,6 +177,7 @@ bool dir_make_recursive(char *path)
 bool dir_change(const char *path)
 {
 #if (_MSC_VER)
+	// SetCurrentDirectoryW does NOT support the \\?\ prefix.
 	return SetCurrentDirectoryW(win_utf8to16(path));
 #else
 	return chdir(path) == 0;
@@ -239,7 +270,7 @@ const char *file_expand_path(const char *path)
 FILE *file_open_read(const char *path)
 {
 #if (_MSC_VER)
-	return _wfopen(win_utf8to16(path), L"rb");
+	return _wfopen(win_path_to_utf16(path), L"rb");
 #else
 	return fopen(path, "rb");
 #endif
@@ -248,7 +279,7 @@ FILE *file_open_read(const char *path)
 FILE *file_open_write(const char *path)
 {
 #if (_MSC_VER)
-	return _wfopen(win_utf8to16(path), L"wb");
+	return _wfopen(win_path_to_utf16(path), L"wb");
 #else
 	return fopen(path, "wb");
 #endif
@@ -257,7 +288,7 @@ FILE *file_open_write(const char *path)
 bool file_touch(const char *path)
 {
 #if (_MSC_VER)
-	FILE *file = _wfopen(win_utf8to16(path), L"a");
+	FILE *file = _wfopen(win_path_to_utf16(path), L"a");
 #else
 	FILE *file = fopen(path, "a");
 #endif
@@ -635,7 +666,7 @@ void file_copy_file(const char *src_path, const char *dst_path, bool overwrite)
 	ASSERT(src_path);
 	ASSERT(dst_path);
 #if (_MSC_VER)
-	CopyFileW(win_utf8to16(src_path), win_utf8to16(dst_path), !overwrite);
+	CopyFileW(win_path_to_utf16(src_path), win_path_to_utf16(dst_path), !overwrite);
 #else
 	scratch_buffer_clear();
 	scratch_buffer_append("cp ");
@@ -652,7 +683,7 @@ bool file_delete_file(const char *path)
 	ASSERT(path);
 	if (!file_exists(path)) return false;
 #if (_MSC_VER)
-	return DeleteFileW(win_utf8to16(path));
+	return DeleteFileW(win_path_to_utf16(path));
 #else
 	return !unlink(path);
 #endif
@@ -692,6 +723,7 @@ void file_add_wildcard_files(const char ***files, const char *path, bool recursi
 	intptr_t file_handle;
 	const char *search = str_printf(path_ends_with_slash ? "%s*.*" : "%s\\*.*", path);
 	DEBUG_LOG("Search %s", search);
+	// _wfindfirst (CRT) does NOT support the \\?\ prefix.
 	if ((file_handle = _wfindfirst(win_utf8to16(search), &file_data)) == -1L) return;
 	do
 	{

@@ -28,7 +28,7 @@ static inline DIR *opendir(const char *name)
 {
 	DIR *dir = calloc(1, sizeof(DIR));
 	char *search_path = str_printf("%s\\*", name);
-	uint16_t *wpath = win_utf8to16(search_path);
+	uint16_t *wpath = win_path_to_utf16(search_path);
 	dir->handle = FindFirstFileW(wpath, &dir->data);
 	free(wpath);
 	if (dir->handle == INVALID_HANDLE_VALUE)

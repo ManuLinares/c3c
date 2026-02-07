@@ -15,9 +15,13 @@
 #include <stdbool.h>
 #ifdef _MSC_VER
 #define PATH_MAX 260
+#define fseek64 _fseeki64
+#define ftell64 _ftelli64
 #else
 #include <unistd.h>
 #include <limits.h>
+#define fseek64 fseeko
+#define ftell64 ftello
 #endif
 
 #define NO_ARENA 0

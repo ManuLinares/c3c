@@ -219,13 +219,13 @@ static bool cpio_read(CpioState *s, void *dst, size_t len)
 				}
 				
 				uint8_t xz_peek[6];
-				long pos = ftell(s->in);
+				int64_t pos = ftell64(s->in);
 				if (fread(xz_peek, 1, 6, s->in) == 6 && memcmp(xz_peek, XZ_MAGIC_BYTES, 6) == 0) {
 					s->is_lzma = true;
 				} else {
 					s->is_lzma = false;
 				}
-				fseek(s->in, pos, SEEK_SET);
+				fseek64(s->in, pos, SEEK_SET);
 
 				s->main_flags = chunk_flags;
 				s->remaining_chunk = chunk_size;
@@ -308,9 +308,9 @@ static void pbzx_extract(const char *pbzx_path, const char *out_dir, int range_s
 	FILE *in = fopen(pbzx_path, "rb");
 	if (!in) return;
 
-	fseek(in, 0, SEEK_END);
-	uint64_t total_size = (uint64_t)ftell(in);
-	fseek(in, 0, SEEK_SET);
+	fseek64(in, 0, SEEK_END);
+	uint64_t total_size = (uint64_t)ftell64(in);
+	fseek64(in, 0, SEEK_SET);
 
 	char magic[4];
 	if (fread(magic, 1, 4, in) != 4 || strncmp(magic, PBZX_MAGIC, 4) != 0)
@@ -335,7 +335,7 @@ static void pbzx_extract(const char *pbzx_path, const char *out_dir, int range_s
 	{
 		if (total_size > 0 && verbose_level == 0)
 		{
-			uint64_t current = (uint64_t)ftell(in);
+			uint64_t current = (uint64_t)ftell64(in);
 			int p = range_start + (int)((range_end - range_start) * current / total_size);
 			static int last_p = -1;
 			if (p != last_p)
@@ -456,9 +456,9 @@ static void xar_extract_to_dir(const char *xar_path, const char *out_dir, int ra
 	FILE *f = fopen(xar_path, "rb");
 	if (!f) return;
 
-	fseek(f, 0, SEEK_END);
-	uint64_t total_size = (uint64_t)ftell(f);
-	fseek(f, 0, SEEK_SET);
+	fseek64(f, 0, SEEK_END);
+	uint64_t total_size = (uint64_t)ftell64(f);
+	fseek64(f, 0, SEEK_SET);
 
 	uint32_t magic = read_be32(f);
 	if (magic != XAR_MAGIC)
@@ -484,7 +484,7 @@ static void xar_extract_to_dir(const char *xar_path, const char *out_dir, int ra
 		return;
 	}
 
-	fseek(f, header_size, SEEK_SET);
+	fseek64(f, header_size, SEEK_SET);
 
 	uint8_t *toc_comp_buf = malloc(toc_compressed);
 	if (fread(toc_comp_buf, 1, (size_t)toc_compressed, f) != (size_t)toc_compressed)
@@ -554,7 +554,7 @@ static void xar_extract_to_dir(const char *xar_path, const char *out_dir, int ra
 
 					if (total_size > 0 && verbose_level == 0)
 					{
-						int p = range_start + (int)((range_end - range_start) * ftell(f) / total_size);
+						int p = range_start + (int)((range_end - range_start) * ftell64(f) / total_size);
 						ui_print_progress("Extracting macOS SDK", p);
 					}
 
@@ -569,7 +569,7 @@ static void xar_extract_to_dir(const char *xar_path, const char *out_dir, int ra
 							uint64_t offset = strtoull(off_tag + 8, NULL, 10);
 							uint64_t size = strtoull(sz_tag + 6, NULL, 10);
 
-							fseek(f, (long)(heap_offset + offset), SEEK_SET);
+							fseek64(f, (int64_t)(heap_offset + offset), SEEK_SET);
 							file_create_folders(abs_out_path);
 							FILE *out = fopen(abs_out_path, "wb");
 							if (out)

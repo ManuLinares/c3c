@@ -4,6 +4,13 @@
 
 void ui_print_progress(const char *label, int percent)
 {
+	static int last_percent = -1;
+	static const char *last_label = NULL;
+	if (percent == last_percent && last_label == label) return;
+	last_percent = percent;
+	last_label = label;
+
+	if (percent < 0) percent = 0;
 	int width = 40;
 	if (percent > 100) percent = 100;
 

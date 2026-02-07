@@ -71,10 +71,25 @@ uint16_t *win_path_to_utf16(const char *value)
 
 	if (is_abs && !already_prefixed && len > 240)
 	{
-		buf = malloc(len + 5);
-		sprintf(buf, "\\\\?\\%s", value);
-		// Long path prefix requires backslashes
-		for (size_t i = 4; i < len + 4; i++) if (buf[i] == '/') buf[i] = '\\';
+		// Normalize the path: remove . and collapse slashes, as \\?\ is very strict.
+		char *normalized = malloc(len + 1);
+		size_t j = 0;
+		for (size_t i = 0; i < len; i++)
+		{
+			char c = value[i];
+			// Convert to backslash
+			if (c == '/') c = '\\';
+			// Collapse multiple backslashes
+			if (c == '\\' && j > 0 && normalized[j - 1] == '\\') continue;
+			// Skip /./
+			if (c == '.' && i > 0 && (value[i - 1] == '/' || value[i - 1] == '\\') && (value[i + 1] == '/' || value[i + 1] == '\\' || value[i + 1] == '\0')) continue;
+			normalized[j++] = c;
+		}
+		normalized[j] = '\0';
+
+		buf = malloc(j + 5);
+		sprintf(buf, "\\\\?\\%s", normalized);
+		free(normalized);
 		to_convert = buf;
 	}
 
@@ -348,10 +363,10 @@ char *file_read_all(const char *path, size_t *return_size)
 		error_exit("Could not open file \"%s\".\n", path);
 	}
 
-	fseek(file, 0L, SEEK_END);
-	size_t file_size = (size_t)ftell(file);
+	fseek64(file, 0L, SEEK_END);
+	size_t file_size = (size_t)ftell64(file);
 	*return_size = file_size;
-	rewind(file);
+	fseek64(file, 0L, SEEK_SET);
 
 	char *buffer = (char *)MALLOC(file_size + 1);
 	if (buffer == NULL)
@@ -402,8 +417,8 @@ char *file_read_binary(const char *path, size_t *size)
 
 	if (file == NULL) return NULL;
 
-	fseek(file, 0L, SEEK_END);
-	size_t file_size = (size_t)ftell(file);
+	fseek64(file, 0L, SEEK_END);
+	size_t file_size = (size_t)ftell64(file);
 
 	if (!file_size)
 	{
@@ -411,7 +426,7 @@ char *file_read_binary(const char *path, size_t *size)
 		return zero;
 	}
 	if (file_size > max_read) file_size = max_read;
-	rewind(file);
+	fseek64(file, 0L, SEEK_SET);
 	char *buffer = (char *)MALLOC(file_size + 1);
 	if (buffer == NULL)
 	{

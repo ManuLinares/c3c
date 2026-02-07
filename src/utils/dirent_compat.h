@@ -9,6 +9,7 @@
 #if defined(_WIN32) || defined(_WIN64)
 
 #define WIN32_LEAN_AND_MEAN
+// Only shadow if TokenType isn't already defined (some files do this before including)
 #ifndef TokenType
 #define TokenType WindowsTokenType
 #define MAX_PRIORITY WindowsMAX_PRIORITY
@@ -20,6 +21,7 @@
 #endif
 
 #include "lib.h"
+#include <sys/stat.h>
 
 struct dirent
 {

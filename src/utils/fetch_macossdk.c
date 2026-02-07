@@ -1,6 +1,10 @@
-#if !defined(_WIN32)
 #include <sys/stat.h>
+#if !defined(_WIN32)
 #include <unistd.h>
+#else
+#define lstat stat
+#define S_ISLNK(m) 0
+typedef long long ssize_t;
 #endif
 #include <stdio.h>
 #include <stdlib.h>

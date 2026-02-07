@@ -70,5 +70,5 @@ static inline void closedir(DIR *dir)
 
 #else
 // On POSIX systems, just include the standard header
-#include <dirent.h>
+#include <dirent.h> // IWYU pragma: export
 #endif

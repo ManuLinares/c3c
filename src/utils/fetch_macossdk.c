@@ -16,7 +16,7 @@ typedef long long ssize_t;
 
 #include <lzma.h>
 #include "miniz.h"
-#include "utils/dirent_compat.h"
+#include "utils/dirent_compat.h" // IWYU pragma: keep
 
 static int verbose_level = 0;
 

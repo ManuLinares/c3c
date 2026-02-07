@@ -1,7 +1,7 @@
 #include "compiler_internal.h"
 #include "utils/whereami.h"
 #include "utils/json.h"
-#include "utils/dirent_compat.h"
+#include "utils/dirent_compat.h" // IWYU pragma: keep
 
 static char *get_macos_sdk_output_path(void)
 {

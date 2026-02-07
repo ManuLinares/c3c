@@ -47,7 +47,6 @@ static int verbose_level = 0;
 static int count_files_recursive(const char *path)
 {
 	int count = 0;
-#if !PLATFORM_WINDOWS
 	DIR *d = opendir(path);
 	if (!d) return 0;
 	struct dirent *de;
@@ -63,13 +62,11 @@ static int count_files_recursive(const char *path)
 		}
 	}
 	closedir(d);
-#endif
 	return count;
 }
 
 static void copy_dir_recursive(const char *src, const char *dst, int *copied, int total, int p_start, int p_end)
 {
-#if !PLATFORM_WINDOWS
 	DIR *d = opendir(src);
 	if (!d) return;
 	dir_make_recursive((char *)dst);
@@ -88,12 +85,13 @@ static void copy_dir_recursive(const char *src, const char *dst, int *copied, in
 				(*copied)++;
 				if ((*copied) % 100 == 0 && verbose_level == 0)
 				{
-					ui_print_progress("Extracting macOS SDK", p_start + (int)((p_end - p_start) * (*copied) / total));
+					ui_print_progress("Extracting macOS SDK", p_start + (int)((p_end - p_start) * (*copied) / (double)total));
 				}
 			}
 
 			if (S_ISLNK(st.st_mode))
 			{
+#if !PLATFORM_WINDOWS
 				char link_target[4096];
 				ssize_t len = readlink(s_path, link_target, sizeof(link_target) - 1);
 				if (len != -1)
@@ -102,6 +100,7 @@ static void copy_dir_recursive(const char *src, const char *dst, int *copied, in
 					file_delete_file(d_path);
 					symlink(link_target, d_path);
 				}
+#endif
 			}
 			else if (S_ISDIR(st.st_mode))
 			{
@@ -114,9 +113,6 @@ static void copy_dir_recursive(const char *src, const char *dst, int *copied, in
 		}
 	}
 	closedir(d);
-#else
-	dir_make_recursive((char *)dst);
-#endif
 }
 
 static char *get_macos_sdk_output_path(void)
@@ -130,12 +126,18 @@ static char *get_macos_sdk_output_path(void)
 
 	if (env_path)
 	{
-		return file_append_path(env_path, "c3/macos_sdk");
+		char *c3_path = (char *)file_append_path(env_path, "c3");
+		return file_append_path(c3_path, "macos_sdk");
 	}
 
 #if !PLATFORM_WINDOWS
 	char *home = getenv("HOME");
-	if (home) return file_append_path(home, ".cache/c3/macos_sdk");
+	if (home)
+	{
+		char *cache = (char *)file_append_path(home, ".cache");
+		char *c3_path = (char *)file_append_path(cache, "c3");
+		return file_append_path(c3_path, "macos_sdk");
+	}
 #endif
 
 	const char *path = find_executable_path();
@@ -404,7 +406,8 @@ static void pbzx_extract(const char *pbzx_path, const char *out_dir, int range_s
 			symlink(target, path);
 #else
 			// On Windows, copy the symlink target instead of creating a symlink
-			char *target_path = (char *)file_append_path(state.base_dir, target);
+			char *parent_dir = file_get_dir(path);
+			char *target_path = (char *)file_append_path(parent_dir, target);
 			if (file_exists(target_path))
 			{
 				file_copy_file(target_path, path, true);

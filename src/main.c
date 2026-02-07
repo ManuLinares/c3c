@@ -8,7 +8,7 @@
 #include <sys/resource.h>
 #endif
 #if PLATFORM_WINDOWS
-#include <windows.h>
+#include "utils/win32_compat.h"
 #endif
 
 bool debug_log = false;

@@ -1,7 +1,7 @@
 #include "common.h"
 
 #if PLATFORM_WINDOWS
-#include <windows.h>
+#include "win32_compat.h"
 int cpus(void)
 {
 	SYSTEM_INFO sysinfo;

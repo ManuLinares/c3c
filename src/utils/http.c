@@ -5,8 +5,7 @@
 #include "lib.h"
 
 #if PLATFORM_WINDOWS
-
-#include <windows.h>
+#include "win32_compat.h"
 #include <winhttp.h>
 
 static inline wchar_t *char_to_wchar(const char *str)

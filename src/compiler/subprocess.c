@@ -10,8 +10,7 @@ pid_t cpid;
 #endif
 
 #if PLATFORM_WINDOWS
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include "../utils/win32_compat.h"
 #endif
 
 #if defined(__linux__)

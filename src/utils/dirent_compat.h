@@ -7,27 +7,7 @@
 // Provides POSIX-like opendir/readdir/closedir on Windows
 
 #if defined(_WIN32) || defined(_WIN64)
-
-#define WIN32_LEAN_AND_MEAN
-// Only shadow if TokenType isn't already defined (some files do this before including)
-#ifndef TokenType
-#define TokenType WindowsTokenType
-#ifdef MAX_PRIORITY
-#define PROJECT_MAX_PRIORITY MAX_PRIORITY
-#undef MAX_PRIORITY
-#endif
-#define MAX_PRIORITY WindowsMAX_PRIORITY
-#include <windows.h>
-#undef TokenType
-#undef MAX_PRIORITY
-#ifdef PROJECT_MAX_PRIORITY
-#define MAX_PRIORITY PROJECT_MAX_PRIORITY
-#undef PROJECT_MAX_PRIORITY
-#endif
-#else
-#include <windows.h>
-#endif
-
+#include "win32_compat.h"
 #include "lib.h"
 #include <sys/stat.h>
 

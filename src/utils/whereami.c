@@ -12,7 +12,7 @@
 
 #if PLATFORM_WINDOWS
 #include <wchar.h>
-#include <windows.h>
+#include "win32_compat.h"
 
 static int get_executable_path_raw(char *buffer)
 {

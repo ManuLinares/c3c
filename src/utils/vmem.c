@@ -12,7 +12,7 @@
 #endif
 
 #if PLATFORM_WINDOWS
-#include <windows.h>
+#include "win32_compat.h"
 #define COMMIT_PAGE_SIZE 0x10000
 #endif
 

@@ -8,7 +8,7 @@
 #include "lib.h"
 
 #if PLATFORM_WINDOWS
-#include <windows.h>
+#include "win32_compat.h"
 #endif
 
 #ifndef _MSC_VER

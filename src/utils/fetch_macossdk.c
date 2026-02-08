@@ -622,35 +622,14 @@ static void xar_extract_to_dir(const char *xar_path, const char *out_dir, int ra
 	fclose(f);
 }
 
-static void resolve_deferred_symlinks_for_sdk(const char *sdk_path)
+static void resolve_deferred_symlinks(const char *base_dir)
 {
 	if (!deferred_symlinks) return;
-	
 	int resolved_count = 0;
-	int total = 0;
+	int total = vec_size(deferred_symlinks);
 	
-	// First, filter and clean up the list to only include links inside our chosen SDK
-	for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)
-	{
-		if (deferred_symlinks[i].path && str_start_with(deferred_symlinks[i].path, sdk_path))
-		{
-			total++;
-		}
-		else
-		{
-			if (deferred_symlinks[i].path) free(deferred_symlinks[i].path);
-			if (deferred_symlinks[i].target) free(deferred_symlinks[i].target);
-			deferred_symlinks[i].path = NULL;
-			deferred_symlinks[i].target = NULL;
-		}
-	}
-
-	if (total == 0)
-	{
-		vec_resize(deferred_symlinks, 0);
-		return;
-	}
-	VERBOSE_PRINT(1, "  Resolving %d relevant symlinks for %s...\n", total, filename(sdk_path));
+	// On Windows, we need to resolve links to find the actual SDKs
+	VERBOSE_PRINT(1, "  Resolving internal stubs...\n");
 
 	for (int pass = 0; pass < 5; pass++)
 	{
@@ -756,6 +735,9 @@ static void extract_payloads(const char *pkg_data_dir, const char *out_dir)
 		}
 		closedir(d);
 	}
+#if PLATFORM_WINDOWS
+	resolve_deferred_symlinks(out_dir);
+#endif
 }
 
 static const char *find_7z_path(void)
@@ -891,7 +873,7 @@ void fetch_macossdk(BuildOptions *options)
 		}
 		
 #if PLATFORM_WINDOWS
-		resolve_deferred_symlinks_for_sdk(dst);
+		resolve_deferred_symlinks(dst);
 #endif
 		free(best_name);
 	}

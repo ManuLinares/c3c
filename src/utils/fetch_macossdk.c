@@ -876,29 +876,42 @@ void fetch_macossdk(BuildOptions *options)
 
 	// Identify the best SDK to move (highest version)
 	char *best_name = NULL;
-	DIR *d = opendir(sdks_dir);
-	if (d)
+	
+	const char **sdk_entries = NULL;
+	const char *suffixes[] = { ".sdk" };
+	file_add_wildcard_files(&sdk_entries, sdks_dir, false, suffixes, 1);
+	
+	if (vec_size(sdk_entries) > 0)
 	{
-		struct dirent *de;
-		while ((de = readdir(d)))
+		for (int i = 0; i < vec_size(sdk_entries); i++)
 		{
-			if (strstr(de->d_name, ".sdk") && strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0)
+			const char *entry_path = sdk_entries[i];
+			char *entry_name = file_get_dir(entry_path) ? NULL : (char*)entry_path; // file_add_wildcard_files usually returns full paths?
+			// file_add_wildcard_files joins path + name. We need just the name.
+			// Let's re-extract filename.
+			char *fname = NULL;
+			file_get_dir_and_filename_from_full(entry_path, &fname, NULL);
+			
+			if (!fname) continue;
+			
+			VERBOSE_PRINT(1, "  Candidate: %s\n", fname);
+			if (!best_name || strcmp(fname, best_name) > 0)
 			{
-				VERBOSE_PRINT(1, "  Candidate: %s\n", de->d_name);
-				if (!best_name || strcmp(de->d_name, best_name) > 0)
-				{
-					if (best_name) free(best_name);
-					best_name = str_dup(de->d_name);
-					VERBOSE_PRINT(1, "  Best so far: %s\n", best_name);
-					fflush(stdout);
-				}
+				if (best_name) free(best_name);
+				best_name = fname; // Take ownership
+				VERBOSE_PRINT(1, "  Best so far: %s\n", best_name);
+				fflush(stdout);
+			}
+			else
+			{
+				free(fname);
 			}
 		}
-		closedir(d);
+		vec_free(sdk_entries);
 	}
 	else
 	{
-		VERBOSE_PRINT(0, "Error: Could not open SDK directory: %s\n", sdks_dir);
+		VERBOSE_PRINT(0, "Error: No SDK directories found in %s\n", sdks_dir);
 	}
 
 	VERBOSE_PRINT(1, "Final Selection: %s\n", best_name ? best_name : "(null)");

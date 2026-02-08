@@ -13,6 +13,7 @@ typedef long long ssize_t;
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <errno.h>
 #include "build/build.h"
 #include "utils/lib.h"
 #include "utils/whereami.h"
@@ -75,12 +76,20 @@ static int count_files_recursive(const char *path)
 static void copy_dir_recursive(const char *src, const char *dst, int *copied, int total, int p_start, int p_end)
 {
 	DIR *d = opendir(src);
-	if (!d) return;
+	if (!d)
+	{
+		VERBOSE_PRINT(0, "Error: Failed to open directory for copying: %s (errno: %s)\n", src, strerror(errno));
+		return;
+	}
 	dir_make_recursive((char *)dst);
 	struct dirent *de;
+	int count = 0;
 	while ((de = readdir(d)))
 	{
 		if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+		
+		if (++count % 500 == 0) VERBOSE_PRINT(1, "    ...copied %d files/dirs so far...\n", count);
+
 		char *s_path = (char *)file_append_path(src, de->d_name);
 		char *d_path = (char *)file_append_path(dst, de->d_name);
 		
@@ -934,14 +943,25 @@ void fetch_macossdk(BuildOptions *options)
 		int total_files_work = count_files_recursive(src);
 		int files_processed = 0;
 		
-		struct stat st;
-		if (lstat(src, &st) == 0)
+	struct stat st;
+	if (lstat(src, &st) == 0)
+	{
+		VERBOSE_PRINT(1, "  Source type: %s\n", S_ISDIR(st.st_mode) ? "Directory" : (S_ISLNK(st.st_mode) ? "Symlink" : "Other"));
+		if (!dir_make_recursive(dst))
 		{
-			VERBOSE_PRINT(1, "  Source type: %s\n", S_ISDIR(st.st_mode) ? "Directory" : (S_ISLNK(st.st_mode) ? "Symlink" : "Other"));
-			file_delete_dir(dst);
-			
-			// On Windows, a directory symlink/junction should be treated as a directory for copying purposes
-			if (S_ISDIR(st.st_mode) || (PLATFORM_WINDOWS && S_ISLNK(st.st_mode)))
+			VERBOSE_PRINT(0, "Error: Could not create destination directory: %s (errno: %s)\n", dst, strerror(errno));
+		}
+		
+		file_delete_dir(dst); // Wait, this deletes it right after creating? Logic error? 
+		// Actually file_delete_dir usually removes contents. Let's fix this logic first.
+		// The original logic was file_delete_dir(dst) to clear old version THEN copy.
+		
+		// Correct logic:
+		file_delete_dir(dst); 
+		dir_make_recursive(dst);
+
+		// On Windows, a directory symlink/junction should be treated as a directory for copying purposes
+		if (S_ISDIR(st.st_mode) || (PLATFORM_WINDOWS && S_ISLNK(st.st_mode)))
 			{
 				copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
 				

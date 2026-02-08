@@ -882,30 +882,15 @@ void fetch_macossdk(BuildOptions *options)
 		struct dirent *de;
 		while ((de = readdir(d)))
 		{
-			VERBOSE_PRINT(1, "  Checking Entry: '%s'\n", de->d_name);
-			if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
-
-			bool is_sdk = (strstr(de->d_name, ".sdk") != NULL);
-			VERBOSE_PRINT(1, "    Is SDK? %s\n", is_sdk ? "Yes" : "No");
-			
-			if (is_sdk)
+			if (strstr(de->d_name, ".sdk") && strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0)
 			{
-				VERBOSE_PRINT(1, "    Found candidate: %s\n", de->d_name);
-				if (!best_name)
+				VERBOSE_PRINT(1, "  Candidate: %s\n", de->d_name);
+				if (!best_name || strcmp(de->d_name, best_name) > 0)
 				{
+					if (best_name) free(best_name);
 					best_name = str_dup(de->d_name);
-					VERBOSE_PRINT(1, "    Best is now (first): %s\n", best_name);
-				}
-				else if (strcmp(de->d_name, best_name) > 0)
-				{
-					VERBOSE_PRINT(1, "    %s > %s, updating best.\n", de->d_name, best_name);
-					free(best_name);
-					best_name = str_dup(de->d_name);
-					VERBOSE_PRINT(1, "    Best is now: %s\n", best_name);
-				}
-				else
-				{
-					VERBOSE_PRINT(1, "    %s < %s, keeping current best.\n", de->d_name, best_name);
+					VERBOSE_PRINT(1, "  Best so far: %s\n", best_name);
+					fflush(stdout);
 				}
 			}
 		}
@@ -914,17 +899,10 @@ void fetch_macossdk(BuildOptions *options)
 	else
 	{
 		VERBOSE_PRINT(0, "Error: Could not open SDK directory: %s\n", sdks_dir);
-		// Debug: list out_dir content to see what we actually extracted
-		VERBOSE_PRINT(1, "Listing out_dir content:\n");
-		DIR *debug_d = opendir(out_dir);
-		if (debug_d) {
-			struct dirent *de;
-			while ((de = readdir(debug_d))) VERBOSE_PRINT(1, "  %s\n", de->d_name);
-			closedir(debug_d);
-		}
 	}
 
 	VERBOSE_PRINT(1, "Final Selection: %s\n", best_name ? best_name : "(null)");
+	fflush(stdout);
 
 	if (best_name)
 	{
@@ -938,41 +916,53 @@ void fetch_macossdk(BuildOptions *options)
 		char *src = (char *)file_append_path(sdks_dir, best_name);
 		char *dst = (char *)file_append_path(output_base, best_name);
 		
-		VERBOSE_PRINT(1, "Moving best SDK to destination: %s\n", best_name);
+		VERBOSE_PRINT(1, "Moving best SDK from %s to %s\n", src, dst);
+		fflush(stdout);
 		
-		int total_files_work = count_files_recursive(src);
-		int files_processed = 0;
-	struct stat st;
-	if (lstat(src, &st) == 0)
-	{
-		VERBOSE_PRINT(1, "  Source type: %s\n", S_ISDIR(st.st_mode) ? "Directory" : (S_ISLNK(st.st_mode) ? "Symlink" : "Other"));
-		
-		// Ensure destination does not exist for rename
+		// Ensure destination is clear
 		file_delete_dir(dst);
 		
-		// Ensure parent directory exists
+		// Ensure parent exists
 		char *dst_parent = file_get_dir(dst);
 		dir_make_recursive(dst_parent);
 		free(dst_parent);
 
-		// On Windows, a directory symlink/junction should be treated as a directory for copying purposes
-		if (S_ISDIR(st.st_mode) || (PLATFORM_WINDOWS && S_ISLNK(st.st_mode)))
+		struct stat st;
+		if (lstat(src, &st) == 0)
 		{
-			VERBOSE_PRINT(1, "  Moving SDK from '%s' to '%s'...\n", src, dst);
+			VERBOSE_PRINT(1, "  Source type: %s\n", S_ISDIR(st.st_mode) ? "Directory" : (S_ISLNK(st.st_mode) ? "Symlink" : "Other"));
 			
-			if (rename(src, dst) == 0)
+			// On Windows, a directory symlink/junction should be treated as a directory for copying purposes
+			if (S_ISDIR(st.st_mode) || (PLATFORM_WINDOWS && S_ISLNK(st.st_mode)))
 			{
-				VERBOSE_PRINT(1, "  Move successful.\n");
-				if (verbose_level == 0) ui_print_progress("Extracting macOS SDK", PROGRESS_SDK_ORGANIZED);
-			}
-			else
-			{
-				VERBOSE_PRINT(0, "  Move failed (errno: %s), falling back to recursive copy...\n", strerror(errno));
-				dir_make_recursive(dst);
-				copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
-			}
-			
-			// Step: Merge libc++ headers if missing
+				int total_files_work = count_files_recursive(src);
+				int files_processed = 0;
+
+#if PLATFORM_WINDOWS
+				// Use system move on Windows for maximum reliability
+				char *cmd = str_printf("move /Y \"%s\" \"%s\" >nul 2>&1", src, dst);
+				int ret = system(cmd);
+				if (ret == 0)
+				{
+					VERBOSE_PRINT(1, "  Move successful.\n");
+					if (verbose_level == 0) ui_print_progress("Extracting macOS SDK", PROGRESS_SDK_ORGANIZED);
+				}
+				else
+				{
+					VERBOSE_PRINT(0, "  Move failed (code %d), failing back to copy...\n", ret);
+					dir_make_recursive(dst);
+					copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
+				}
+				free(cmd);
+#else
+				if (rename(src, dst) != 0)
+				{
+					dir_make_recursive(dst);
+					copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
+				}
+#endif
+				
+				// Step: Merge libc++ headers if missing
 				char *clt_libcxx = (char *)file_append_path(clt_dir, "usr/include/c++/v1");
 				char *sdk_libcxx = (char *)file_append_path(dst, "usr/include/c++/v1");
 				

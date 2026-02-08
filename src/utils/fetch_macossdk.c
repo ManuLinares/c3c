@@ -937,21 +937,36 @@ void fetch_macossdk(BuildOptions *options)
 		struct stat st;
 		if (lstat(src, &st) == 0)
 		{
+			VERBOSE_PRINT(1, "  Source type: %s\n", S_ISDIR(st.st_mode) ? "Directory" : (S_ISLNK(st.st_mode) ? "Symlink" : "Other"));
 			file_delete_dir(dst);
-			if (S_ISDIR(st.st_mode))
+			
+			// On Windows, a directory symlink/junction should be treated as a directory for copying purposes
+			if (S_ISDIR(st.st_mode) || (PLATFORM_WINDOWS && S_ISLNK(st.st_mode)))
 			{
 				copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
 				
 				// Step: Merge libc++ headers if missing
 				char *clt_libcxx = (char *)file_append_path(clt_dir, "usr/include/c++/v1");
 				char *sdk_libcxx = (char *)file_append_path(dst, "usr/include/c++/v1");
-				if (file_is_dir(clt_libcxx) && !file_exists(file_append_path(sdk_libcxx, "version")))
+				
+				// Check if we need to merge (and if source exists)
+				// Note: clt_libcxx might also be a symlink/junction
+				struct stat clt_st;
+				if (lstat(clt_libcxx, &clt_st) == 0 && (S_ISDIR(clt_st.st_mode) || (PLATFORM_WINDOWS && S_ISLNK(clt_st.st_mode))) && !file_exists(file_append_path(sdk_libcxx, "version")))
 				{
 					VERBOSE_PRINT(1, "  Merging libc++ headers into SDK...\n");
 					dir_make_recursive(sdk_libcxx);
 					copy_dir_recursive(clt_libcxx, sdk_libcxx, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
 				}
 			}
+			else
+			{
+				VERBOSE_PRINT(0, "Error: Selected SDK '%s' is not a directory or valid link.\n", src);
+			}
+		}
+		else
+		{
+			VERBOSE_PRINT(0, "Error: Could not stat source SDK: %s\n", src);
 		}
 		
 #if PLATFORM_WINDOWS

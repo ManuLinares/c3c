@@ -32,7 +32,7 @@ static int verbose_level = 0;
 #define SMALL_IO_BUFFER_SIZE 8192
 
 typedef struct {
-	char *path;
+	char *rel_path;
 	char *target;
 } DeferredSymlink;
 
@@ -415,7 +415,7 @@ static void pbzx_extract(const char *pbzx_path, const char *out_dir, int range_s
 			// On Windows, store the symlink for later resolution
 			if (!deferred_symlinks) deferred_symlinks = VECNEW(DeferredSymlink, 1024);
 			DeferredSymlink ds;
-			ds.path = str_dup(path);
+			ds.rel_path = str_dup(name);
 			ds.target = str_dup(target);
 			vec_add(deferred_symlinks, ds);
 #endif
@@ -622,14 +622,28 @@ static void xar_extract_to_dir(const char *xar_path, const char *out_dir, int ra
 	fclose(f);
 }
 
-static void resolve_deferred_symlinks(const char *base_dir)
+static void resolve_deferred_symlinks(const char *base_dir, const char *filter_prefix)
 {
 	if (!deferred_symlinks) return;
 	int resolved_count = 0;
-	int total = vec_size(deferred_symlinks);
+	int total = 0;
 	
-	// On Windows, we need to resolve links to find the actual SDKs
-	VERBOSE_PRINT(1, "  Resolving internal stubs...\n");
+	// Count relevant links
+	for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)
+	{
+		if (!deferred_symlinks[i].rel_path) continue;
+		
+		if (filter_prefix)
+		{
+			const char *check_path = deferred_symlinks[i].rel_path;
+			if (strncmp(check_path, "./", 2) == 0) check_path += 2;
+			if (strncmp(check_path, filter_prefix, strlen(filter_prefix)) != 0) continue;
+		}
+		total++;
+	}
+
+	if (total == 0) return;
+	VERBOSE_PRINT(1, "  Resolving %d internal stubs in %s...\n", total, filename(base_dir));
 
 	for (int pass = 0; pass < 5; pass++)
 	{
@@ -637,9 +651,17 @@ static void resolve_deferred_symlinks(const char *base_dir)
 		for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)
 		{
 			DeferredSymlink *ds = &deferred_symlinks[i];
-			if (!ds->path) continue;
+			if (!ds->rel_path) continue;
 			
-			char *parent_dir = file_get_dir(ds->path);
+			if (filter_prefix)
+			{
+				const char *check_path = ds->rel_path;
+				if (strncmp(check_path, "./", 2) == 0) check_path += 2;
+				if (strncmp(check_path, filter_prefix, strlen(filter_prefix)) != 0) continue;
+			}
+			
+			char *abs_path = (char *)file_append_path(base_dir, ds->rel_path);
+			char *parent_dir = file_get_dir(abs_path);
 			char *target_path = (char *)file_append_path(parent_dir, ds->target);
 			
 			if (file_exists(target_path))
@@ -648,35 +670,51 @@ static void resolve_deferred_symlinks(const char *base_dir)
 				bool link_created = false;
 
 #if PLATFORM_WINDOWS
-				// Try to create a native symlink first (requires Dev Mode usually, but better than copying GBs)
-				uint16_t *w_path = win_path_to_utf16(ds->path);
-				uint16_t *w_target = win_path_to_utf16(ds->target); // Relative target is fine
+				// Try to create a native symbolic link
+				uint16_t *w_path = win_path_to_utf16(abs_path);
+				uint16_t *w_target = win_path_to_utf16(ds->target); // Relative target
 				DWORD flags = is_dir ? 0x1 : 0; // SYMBOLIC_LINK_FLAG_DIRECTORY
 				flags |= 0x2; // SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
 				if (CreateSymbolicLinkW(w_path, w_target, flags)) link_created = true;
 				free(w_path);
 				free(w_target);
+
+				if (!link_created && is_dir)
+				{
+					// If link fails, specifically for directories, try a junction if target is absolute or we make it absolute
+					// But for simplicity, we'll just fall back to copying only if it's NOT a huge framework folder
+					if (strstr(abs_path, "Frameworks") && strstr(ds->target, "Versions")) {
+						// Skip redundant framework links to save space
+						link_created = true; 
+					}
+				}
 #endif
 
 				if (!link_created)
 				{
 					if (is_dir) {
-						// For directories, we'll only copy if it's not a redundant Framework version link
-						// to save space. Most SDK directory links are Framework shortcuts.
-						if (!strstr(ds->path, "Frameworks") || !strstr(ds->target, "Versions")) {
-							copy_dir_recursive(target_path, ds->path, NULL, 0, 0, 0);
-						}
+						copy_dir_recursive(target_path, abs_path, NULL, 0, 0, 0);
 					} else {
-						file_copy_file(target_path, ds->path, true);
+						file_copy_file(target_path, abs_path, true);
 					}
 				}
 				
-				free(ds->path);
+				free(abs_path);
+				free(parent_dir);
+				free(target_path);
+
+				free(ds->rel_path);
 				free(ds->target);
-				ds->path = NULL;
+				ds->rel_path = NULL;
 				ds->target = NULL;
 				resolved_this_pass++;
 				resolved_count++;
+			}
+			else
+			{
+				free(abs_path);
+				free(parent_dir);
+				free(target_path);
 			}
 		}
 		if (resolved_this_pass == 0) break;
@@ -684,12 +722,12 @@ static void resolve_deferred_symlinks(const char *base_dir)
 
 	if (resolved_count < total)
 	{
-		VERBOSE_PRINT(1, "  Warning: Could not resolve %d symlinks (targets missing or loop).\n", total - resolved_count);
+		VERBOSE_PRINT(1, "  Warning: Could not resolve %d symlinks.\n", total - resolved_count);
 	}
 
 	for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)
 	{
-		if (deferred_symlinks[i].path) free(deferred_symlinks[i].path);
+		if (deferred_symlinks[i].rel_path) free(deferred_symlinks[i].rel_path);
 		if (deferred_symlinks[i].target) free(deferred_symlinks[i].target);
 	}
 	vec_resize(deferred_symlinks, 0);
@@ -736,7 +774,7 @@ static void extract_payloads(const char *pkg_data_dir, const char *out_dir)
 		closedir(d);
 	}
 #if PLATFORM_WINDOWS
-	resolve_deferred_symlinks(out_dir);
+	// We no longer resolve in out_dir, only in the final SDK path
 #endif
 }
 
@@ -844,6 +882,13 @@ void fetch_macossdk(BuildOptions *options)
 
 	if (best_name)
 	{
+#if PLATFORM_WINDOWS
+		VERBOSE_PRINT(1, "Resolving symlinks for best SDK before copying...\n");
+		char *sdk_prefix = str_printf("Library/Developer/CommandLineTools/SDKs/%s/", best_name);
+		resolve_deferred_symlinks(out_dir, sdk_prefix);
+		free(sdk_prefix);
+#endif
+
 		char *src = (char *)file_append_path(sdks_dir, best_name);
 		char *dst = (char *)file_append_path(output_base, best_name);
 		
@@ -873,7 +918,7 @@ void fetch_macossdk(BuildOptions *options)
 		}
 		
 #if PLATFORM_WINDOWS
-		resolve_deferred_symlinks(dst);
+		// resolve_deferred_symlinks(dst, NULL); // Already done in temp
 #endif
 		free(best_name);
 	}

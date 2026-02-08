@@ -622,14 +622,32 @@ static void xar_extract_to_dir(const char *xar_path, const char *out_dir, int ra
 	fclose(f);
 }
 
-static void resolve_deferred_symlinks(const char *base_dir)
+static void resolve_deferred_symlinks_for_sdk(const char *sdk_path)
 {
-	(void)base_dir;
 	if (!deferred_symlinks) return;
-	int resolved_count = 0;
-	int total = vec_size(deferred_symlinks);
-	VERBOSE_PRINT(1, "  Resolving %d symlinks on Windows...\n", total);
 	
+	int resolved_count = 0;
+	int total = 0;
+	
+	// First, filter and clean up the list to only include links inside our chosen SDK
+	for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)
+	{
+		if (deferred_symlinks[i].path && str_start_with(deferred_symlinks[i].path, sdk_path))
+		{
+			total++;
+		}
+		else
+		{
+			if (deferred_symlinks[i].path) free(deferred_symlinks[i].path);
+			if (deferred_symlinks[i].target) free(deferred_symlinks[i].target);
+			deferred_symlinks[i].path = NULL;
+			deferred_symlinks[i].target = NULL;
+		}
+	}
+
+	if (total == 0) return;
+	VERBOSE_PRINT(1, "  Resolving %d relevant symlinks for %s...\n", total, filename(sdk_path));
+
 	for (int pass = 0; pass < 5; pass++)
 	{
 		int resolved_this_pass = 0;
@@ -643,15 +661,35 @@ static void resolve_deferred_symlinks(const char *base_dir)
 			
 			if (file_exists(target_path))
 			{
-				VERBOSE_PRINT(2, "    Resolving: %s -> %s\n", ds->path, ds->target);
-				if (file_is_dir(target_path))
+				bool is_dir = file_is_dir(target_path);
+				bool link_created = false;
+
+#if PLATFORM_WINDOWS
+				// Try to create a native symlink first (requires Dev Mode usually, but better than copying GBs)
+				uint16_t *w_path = win_path_to_utf16(ds->path);
+				uint16_t *w_target = win_path_to_utf16(ds->target); // Relative target is fine
+				DWORD flags = is_dir ? 0x1 : 0; // SYMBOLIC_LINK_FLAG_DIRECTORY
+				flags |= 0x2; // SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
+				if (CreateSymbolicLinkW(w_path, w_target, flags)) link_created = true;
+				free(w_path);
+				free(w_target);
+#endif
+
+				if (!link_created)
 				{
-					copy_dir_recursive(target_path, ds->path, NULL, 0, 0, 0);
+					if (is_dir) {
+						// For directories, we'll only copy if it's not a redundant Framework version link
+						// to save space. Most SDK directory links are Framework shortcuts.
+						if (!strstr(ds->path, "Frameworks") || !strstr(ds->target, "Versions")) {
+							copy_dir_recursive(target_path, ds->path, NULL, 0, 0, 0);
+						}
+					} else {
+						file_copy_file(target_path, ds->path, true);
+					}
 				}
-				else
-				{
-					file_copy_file(target_path, ds->path, true);
-				}
+				
+				free(ds->path);
+				free(ds->target);
 				ds->path = NULL;
 				ds->target = NULL;
 				resolved_this_pass++;
@@ -660,19 +698,15 @@ static void resolve_deferred_symlinks(const char *base_dir)
 		}
 		if (resolved_this_pass == 0) break;
 	}
-	
-	if (resolved_count < total)
-	{
-		VERBOSE_PRINT(1, "  Warning: Could not resolve %d symlinks (targets missing).\n", total - resolved_count);
-	}
-	
+
 	for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)
 	{
-		free(deferred_symlinks[i].path);
-		free(deferred_symlinks[i].target);
+		if (deferred_symlinks[i].path) free(deferred_symlinks[i].path);
+		if (deferred_symlinks[i].target) free(deferred_symlinks[i].target);
 	}
 	vec_resize(deferred_symlinks, 0);
 }
+
 
 static void extract_payloads(const char *pkg_data_dir, const char *out_dir)
 {
@@ -713,9 +747,6 @@ static void extract_payloads(const char *pkg_data_dir, const char *out_dir)
 		}
 		closedir(d);
 	}
-#if PLATFORM_WINDOWS
-	resolve_deferred_symlinks(out_dir);
-#endif
 }
 
 static const char *find_7z_path(void)
@@ -849,6 +880,10 @@ void fetch_macossdk(BuildOptions *options)
 				}
 			}
 		}
+		
+#if PLATFORM_WINDOWS
+		resolve_deferred_symlinks_for_sdk(dst);
+#endif
 		free(best_name);
 	}
 	

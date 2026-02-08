@@ -31,6 +31,13 @@ static int verbose_level = 0;
 #define IO_BUFFER_SIZE 65536
 #define SMALL_IO_BUFFER_SIZE 8192
 
+typedef struct {
+	char *path;
+	char *target;
+} DeferredSymlink;
+
+static DeferredSymlink *deferred_symlinks = NULL;
+
 #define XAR_MAGIC 0x78617221
 #define PBZX_MAGIC "pbzx"
 #define CPIO_NEWC_MAGIC "070701"
@@ -405,13 +412,12 @@ static void pbzx_extract(const char *pbzx_path, const char *out_dir, int range_s
 			file_create_folders(path);
 			symlink(target, path);
 #else
-			// On Windows, copy the symlink target instead of creating a symlink
-			char *parent_dir = file_get_dir(path);
-			char *target_path = (char *)file_append_path(parent_dir, target);
-			if (file_exists(target_path))
-			{
-				file_copy_file(target_path, path, true);
-			}
+			// On Windows, store the symlink for later resolution
+			if (!deferred_symlinks) deferred_symlinks = VECNEW(DeferredSymlink, 1024);
+			DeferredSymlink ds;
+			ds.path = str_dup(path);
+			ds.target = str_dup(target);
+			vec_add(deferred_symlinks, ds);
 #endif
 			free(target);
 		}
@@ -616,6 +622,53 @@ static void xar_extract_to_dir(const char *xar_path, const char *out_dir, int ra
 	fclose(f);
 }
 
+static void resolve_deferred_symlinks(const char *base_dir)
+{
+	(void)base_dir;
+	if (!deferred_symlinks) return;
+	int resolved_count = 0;
+	int total = vec_size(deferred_symlinks);
+	VERBOSE_PRINT(1, "  Resolving %d symlinks on Windows...\n", total);
+	
+	for (int pass = 0; pass < 5; pass++)
+	{
+		int resolved_this_pass = 0;
+		for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)
+		{
+			DeferredSymlink *ds = &deferred_symlinks[i];
+			if (!ds->path) continue;
+			
+			char *parent_dir = file_get_dir(ds->path);
+			char *target_path = (char *)file_append_path(parent_dir, ds->target);
+			
+			if (file_exists(target_path))
+			{
+				VERBOSE_PRINT(2, "    Resolving: %s -> %s\n", ds->path, ds->target);
+				if (file_is_dir(target_path))
+				{
+					copy_dir_recursive(target_path, ds->path, NULL, 0, 0, 0);
+				}
+				else
+				{
+					file_copy_file(target_path, ds->path, true);
+				}
+				ds->path = NULL;
+				ds->target = NULL;
+				resolved_this_pass++;
+				resolved_count++;
+			}
+		}
+		if (resolved_this_pass == 0) break;
+	}
+	
+	if (resolved_count < total)
+	{
+		VERBOSE_PRINT(1, "  Warning: Could not resolve %d symlinks (targets missing).\n", total - resolved_count);
+	}
+	
+	vec_resize(deferred_symlinks, 0);
+}
+
 static void extract_payloads(const char *pkg_data_dir, const char *out_dir)
 {
 	int total_pkgs = 0;
@@ -655,6 +708,9 @@ static void extract_payloads(const char *pkg_data_dir, const char *out_dir)
 		}
 		closedir(d);
 	}
+#if PLATFORM_WINDOWS
+	resolve_deferred_symlinks(out_dir);
+#endif
 }
 
 static const char *find_7z_path(void)

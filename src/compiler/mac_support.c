@@ -14,12 +14,18 @@ static char *get_macos_sdk_output_path(void)
 
 	if (env_path)
 	{
-		return file_append_path(env_path, "c3/macos_sdk");
+		char *c3_path = (char *)file_append_path(env_path, "c3");
+		return file_append_path(c3_path, "macos_sdk");
 	}
 
 #if !PLATFORM_WINDOWS
 	char *home = getenv("HOME");
-	if (home) return file_append_path(home, ".cache/c3/macos_sdk");
+	if (home)
+	{
+		char *cache = (char *)file_append_path(home, ".cache");
+		char *c3_path = (char *)file_append_path(cache, "c3");
+		return file_append_path(c3_path, "macos_sdk");
+	}
 #endif
 
 	const char *path = find_executable_path();

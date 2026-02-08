@@ -666,6 +666,11 @@ static void resolve_deferred_symlinks(const char *base_dir)
 		VERBOSE_PRINT(1, "  Warning: Could not resolve %d symlinks (targets missing).\n", total - resolved_count);
 	}
 	
+	for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)
+	{
+		free(deferred_symlinks[i].path);
+		free(deferred_symlinks[i].target);
+	}
 	vec_resize(deferred_symlinks, 0);
 }
 
@@ -795,9 +800,8 @@ void fetch_macossdk(BuildOptions *options)
 	char *clt_root = (char *)file_append_path(out_dir, "Library/Developer/CommandLineTools");
 	char *sdks_dir = (char *)file_append_path(clt_root, "SDKs");
 	
-	int total_files_work = count_files_recursive(clt_root);
-	int files_processed = 0;
-
+	// Identify the best SDK to move (highest version)
+	char *best_name = NULL;
 	DIR *d = opendir(sdks_dir);
 	if (d)
 	{
@@ -806,50 +810,46 @@ void fetch_macossdk(BuildOptions *options)
 		{
 			if (strstr(de->d_name, ".sdk") && strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0)
 			{
-				char *src = (char *)file_append_path(sdks_dir, de->d_name);
-				char *dst = (char *)file_append_path(output_base, de->d_name);
-				
-				VERBOSE_PRINT(1, "Found SDK: %s\n", de->d_name);
-				
-				struct stat st;
-				if (lstat(src, &st) == 0)
+				if (!best_name || strcmp(de->d_name, best_name) > 0)
 				{
-					file_delete_dir(dst);
-					if (S_ISLNK(st.st_mode))
-					{
-#if !PLATFORM_WINDOWS
-						char link_target[4096];
-						ssize_t len = readlink(src, link_target, sizeof(link_target) - 1);
-						if (len != -1)
-						{
-							link_target[len] = '\0';
-							symlink(link_target, dst);
-						}
-						files_processed++; // Link counts as 1
-#endif
-					}
-					else if (S_ISDIR(st.st_mode))
-					{
-						copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
-					}
-
-					// Step: Merge libc++ headers if missing (only for directory SDKs)
-					if (S_ISDIR(st.st_mode))
-					{
-						// Apple CLT puts them in usr/include/c++/v1 relative to CLT root
-						char *clt_libcxx = (char *)file_append_path(clt_root, "usr/include/c++/v1");
-						char *sdk_libcxx = (char *)file_append_path(dst, "usr/include/c++/v1");
-						if (file_is_dir(clt_libcxx) && !file_exists(file_append_path(sdk_libcxx, "version")))
-						{
-							VERBOSE_PRINT(1, "  Merging libc++ headers into SDK...\n");
-							dir_make_recursive(sdk_libcxx);
-							copy_dir_recursive(clt_libcxx, sdk_libcxx, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
-						}
-					}
+					if (best_name) free(best_name);
+					best_name = str_dup(de->d_name);
 				}
 			}
 		}
 		closedir(d);
+	}
+
+	if (best_name)
+	{
+		char *src = (char *)file_append_path(sdks_dir, best_name);
+		char *dst = (char *)file_append_path(output_base, best_name);
+		
+		VERBOSE_PRINT(1, "Moving best SDK to destination: %s\n", best_name);
+		
+		int total_files_work = count_files_recursive(src);
+		int files_processed = 0;
+		
+		struct stat st;
+		if (lstat(src, &st) == 0)
+		{
+			file_delete_dir(dst);
+			if (S_ISDIR(st.st_mode))
+			{
+				copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
+				
+				// Step: Merge libc++ headers if missing
+				char *clt_libcxx = (char *)file_append_path(clt_root, "usr/include/c++/v1");
+				char *sdk_libcxx = (char *)file_append_path(dst, "usr/include/c++/v1");
+				if (file_is_dir(clt_libcxx) && !file_exists(file_append_path(sdk_libcxx, "version")))
+				{
+					VERBOSE_PRINT(1, "  Merging libc++ headers into SDK...\n");
+					dir_make_recursive(sdk_libcxx);
+					copy_dir_recursive(clt_libcxx, sdk_libcxx, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
+				}
+			}
+		}
+		free(best_name);
 	}
 	
 	file_delete_dir(tmp_base);

@@ -897,17 +897,11 @@ void fetch_macossdk(BuildOptions *options)
 			VERBOSE_PRINT(1, "  Candidate: %s\n", fname);
 			if (!best_name || strcmp(fname, best_name) > 0)
 			{
-				if (best_name) free(best_name);
 				best_name = fname; // Take ownership
 				VERBOSE_PRINT(1, "  Best so far: %s\n", best_name);
 				fflush(stdout);
 			}
-			else
-			{
-				free(fname);
-			}
 		}
-		vec_free(sdk_entries);
 	}
 	else
 	{
@@ -1002,7 +996,7 @@ void fetch_macossdk(BuildOptions *options)
 #if PLATFORM_WINDOWS
 		// resolve_deferred_symlinks(dst, NULL); // Already done in temp
 #endif
-		free(best_name);
+		// free(best_name); // Do not free arena string
 	}
 	
 	file_delete_dir(tmp_base);

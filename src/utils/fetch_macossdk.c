@@ -645,7 +645,11 @@ static void resolve_deferred_symlinks_for_sdk(const char *sdk_path)
 		}
 	}
 
-	if (total == 0) return;
+	if (total == 0)
+	{
+		vec_resize(deferred_symlinks, 0);
+		return;
+	}
 	VERBOSE_PRINT(1, "  Resolving %d relevant symlinks for %s...\n", total, filename(sdk_path));
 
 	for (int pass = 0; pass < 5; pass++)
@@ -697,6 +701,11 @@ static void resolve_deferred_symlinks_for_sdk(const char *sdk_path)
 			}
 		}
 		if (resolved_this_pass == 0) break;
+	}
+
+	if (resolved_count < total)
+	{
+		VERBOSE_PRINT(1, "  Warning: Could not resolve %d symlinks (targets missing or loop).\n", total - resolved_count);
 	}
 
 	for (uint32_t i = 0; i < vec_size(deferred_symlinks); i++)

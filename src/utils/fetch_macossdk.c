@@ -873,13 +873,30 @@ void fetch_macossdk(BuildOptions *options)
 		struct dirent *de;
 		while ((de = readdir(d)))
 		{
-			VERBOSE_PRINT(1, "  Entry: %s\n", de->d_name);
-			if (strstr(de->d_name, ".sdk") && strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0)
+			VERBOSE_PRINT(1, "  Checking Entry: '%s'\n", de->d_name);
+			if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+
+			bool is_sdk = (strstr(de->d_name, ".sdk") != NULL);
+			VERBOSE_PRINT(1, "    Is SDK? %s\n", is_sdk ? "Yes" : "No");
+			
+			if (is_sdk)
 			{
-				if (!best_name || strcmp(de->d_name, best_name) > 0)
+				VERBOSE_PRINT(1, "    Found candidate: %s\n", de->d_name);
+				if (!best_name)
 				{
-					if (best_name) free(best_name);
 					best_name = str_dup(de->d_name);
+					VERBOSE_PRINT(1, "    Best is now (first): %s\n", best_name);
+				}
+				else if (strcmp(de->d_name, best_name) > 0)
+				{
+					VERBOSE_PRINT(1, "    %s > %s, updating best.\n", de->d_name, best_name);
+					free(best_name);
+					best_name = str_dup(de->d_name);
+					VERBOSE_PRINT(1, "    Best is now: %s\n", best_name);
+				}
+				else
+				{
+					VERBOSE_PRINT(1, "    %s < %s, keeping current best.\n", de->d_name, best_name);
 				}
 			}
 		}
@@ -898,9 +915,10 @@ void fetch_macossdk(BuildOptions *options)
 		}
 	}
 
+	VERBOSE_PRINT(1, "Final Selection: %s\n", best_name ? best_name : "(null)");
+
 	if (best_name)
 	{
-		VERBOSE_PRINT(1, "Selected SDK: %s\n", best_name);
 #if PLATFORM_WINDOWS
 		VERBOSE_PRINT(1, "Resolving symlinks for best SDK before copying...\n");
 		char *sdk_prefix = str_printf("Library/Developer/CommandLineTools/SDKs/%s/", best_name);

@@ -857,9 +857,14 @@ void fetch_macossdk(BuildOptions *options)
 	char *output_base = get_macos_sdk_output_path();
 	dir_make_recursive(output_base);
 
-	char *clt_root = (char *)file_append_path(out_dir, "Library/Developer/CommandLineTools");
-	char *sdks_dir = (char *)file_append_path(clt_root, "SDKs");
+	// Robust path construction for Windows
+	char *lib_dir = (char *)file_append_path(out_dir, "Library");
+	char *dev_dir = (char *)file_append_path(lib_dir, "Developer");
+	char *clt_dir = (char *)file_append_path(dev_dir, "CommandLineTools");
+	char *sdks_dir = (char *)file_append_path(clt_dir, "SDKs");
 	
+	VERBOSE_PRINT(1, "Searching for SDKs in: %s\n", sdks_dir);
+
 	// Identify the best SDK to move (highest version)
 	char *best_name = NULL;
 	DIR *d = opendir(sdks_dir);
@@ -868,6 +873,7 @@ void fetch_macossdk(BuildOptions *options)
 		struct dirent *de;
 		while ((de = readdir(d)))
 		{
+			VERBOSE_PRINT(1, "  Entry: %s\n", de->d_name);
 			if (strstr(de->d_name, ".sdk") && strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0)
 			{
 				if (!best_name || strcmp(de->d_name, best_name) > 0)
@@ -879,9 +885,22 @@ void fetch_macossdk(BuildOptions *options)
 		}
 		closedir(d);
 	}
+	else
+	{
+		VERBOSE_PRINT(0, "Error: Could not open SDK directory: %s\n", sdks_dir);
+		// Debug: list out_dir content to see what we actually extracted
+		VERBOSE_PRINT(1, "Listing out_dir content:\n");
+		DIR *debug_d = opendir(out_dir);
+		if (debug_d) {
+			struct dirent *de;
+			while ((de = readdir(debug_d))) VERBOSE_PRINT(1, "  %s\n", de->d_name);
+			closedir(debug_d);
+		}
+	}
 
 	if (best_name)
 	{
+		VERBOSE_PRINT(1, "Selected SDK: %s\n", best_name);
 #if PLATFORM_WINDOWS
 		VERBOSE_PRINT(1, "Resolving symlinks for best SDK before copying...\n");
 		char *sdk_prefix = str_printf("Library/Developer/CommandLineTools/SDKs/%s/", best_name);
@@ -906,7 +925,7 @@ void fetch_macossdk(BuildOptions *options)
 				copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
 				
 				// Step: Merge libc++ headers if missing
-				char *clt_libcxx = (char *)file_append_path(clt_root, "usr/include/c++/v1");
+				char *clt_libcxx = (char *)file_append_path(clt_dir, "usr/include/c++/v1");
 				char *sdk_libcxx = (char *)file_append_path(dst, "usr/include/c++/v1");
 				if (file_is_dir(clt_libcxx) && !file_exists(file_append_path(sdk_libcxx, "version")))
 				{

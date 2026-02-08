@@ -942,30 +942,37 @@ void fetch_macossdk(BuildOptions *options)
 		
 		int total_files_work = count_files_recursive(src);
 		int files_processed = 0;
-		
 	struct stat st;
 	if (lstat(src, &st) == 0)
 	{
 		VERBOSE_PRINT(1, "  Source type: %s\n", S_ISDIR(st.st_mode) ? "Directory" : (S_ISLNK(st.st_mode) ? "Symlink" : "Other"));
-		if (!dir_make_recursive(dst))
-		{
-			VERBOSE_PRINT(0, "Error: Could not create destination directory: %s (errno: %s)\n", dst, strerror(errno));
-		}
 		
-		file_delete_dir(dst); // Wait, this deletes it right after creating? Logic error? 
-		// Actually file_delete_dir usually removes contents. Let's fix this logic first.
-		// The original logic was file_delete_dir(dst) to clear old version THEN copy.
+		// Ensure destination does not exist for rename
+		file_delete_dir(dst);
 		
-		// Correct logic:
-		file_delete_dir(dst); 
-		dir_make_recursive(dst);
+		// Ensure parent directory exists
+		char *dst_parent = file_get_dir(dst);
+		dir_make_recursive(dst_parent);
+		free(dst_parent);
 
 		// On Windows, a directory symlink/junction should be treated as a directory for copying purposes
 		if (S_ISDIR(st.st_mode) || (PLATFORM_WINDOWS && S_ISLNK(st.st_mode)))
+		{
+			VERBOSE_PRINT(1, "  Moving SDK from '%s' to '%s'...\n", src, dst);
+			
+			if (rename(src, dst) == 0)
 			{
+				VERBOSE_PRINT(1, "  Move successful.\n");
+				if (verbose_level == 0) ui_print_progress("Extracting macOS SDK", PROGRESS_SDK_ORGANIZED);
+			}
+			else
+			{
+				VERBOSE_PRINT(0, "  Move failed (errno: %s), falling back to recursive copy...\n", strerror(errno));
+				dir_make_recursive(dst);
 				copy_dir_recursive(src, dst, &files_processed, total_files_work, PROGRESS_PAYLOADS_EXTRACTED, PROGRESS_SDK_ORGANIZED);
-				
-				// Step: Merge libc++ headers if missing
+			}
+			
+			// Step: Merge libc++ headers if missing
 				char *clt_libcxx = (char *)file_append_path(clt_dir, "usr/include/c++/v1");
 				char *sdk_libcxx = (char *)file_append_path(dst, "usr/include/c++/v1");
 				

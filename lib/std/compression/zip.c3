@@ -800,6 +800,8 @@ struct ZipEntryWriter (OutStream)
 
 fn usz? ZipEntryWriter.write(&self, char[] bytes) @dynamic
 {
+	if (bytes.len == 0) return 0;
+
 	self.crc.update(bytes);
 	self.entry.uncompressed_size += bytes.len;
 

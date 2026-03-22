@@ -260,6 +260,7 @@ if(C3_WITH_LLVM)
     endif()
 
     list(REMOVE_DUPLICATES LLVM_LIBRARY_DIRS)
+    list(FILTER LLVM_LIBRARY_DIRS EXCLUDE REGEX "^$")
 
     message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
     message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
@@ -332,6 +333,7 @@ if(C3_WITH_LLVM)
         if(NOT ${C3_LLD_DIR} EQUAL "" AND EXISTS ${C3_LLD_DIR})
             list(APPEND LLVM_LIBRARY_DIRS ${C3_LLD_DIR})
             list(REMOVE_DUPLICATES LLVM_LIBRARY_DIRS)
+            list(FILTER LLVM_LIBRARY_DIRS EXCLUDE REGEX "^$")
         endif()
 
         message(STATUS "Looking for static lld libraries in ${LLVM_LIBRARY_DIRS}")

@@ -172,6 +172,9 @@ static void usage(bool full)
 	{
 		print_opt("--cc <path>", "Set C compiler (for C files in projects and use as system linker).");
 		print_opt("--linker=<option> [<path>]", "Linker: builtin, cc, custom (default is 'cc'), 'custom' requires a path.");
+		print_opt("--lto=<none|thin|full>", "Set link-time optimization mode (default: none).");
+		print_opt("--pgo-generate=<dir>", "Build with PGO instrumentation, writing profiles to <dir>.");
+		print_opt("--pgo-use=<file>", "Build using PGO profile data from <file>.");
 		PRINTF("");
 		print_opt("--use-stdlib=<yes|no>", "Include the standard library (default: yes).");
 		print_opt("--link-libc=<yes|no>", "Link libc other default libraries (default: yes).");
@@ -1162,6 +1165,26 @@ static void parse_option(BuildOptions *options)
 				}
 				return;
 			}
+			if ((argopt = match_argopt("lto")))
+			{
+				options->lto_mode = parse_opt_select(LtoMode, argopt, lto_options);
+				return;
+			}
+			if ((argopt = match_argopt("pgo-generate")))
+			{
+				if (!*argopt) error_exit("error: --pgo-generate requires a directory path.");
+				options->pgo_mode = PGO_INSTRUMENT;
+				options->pgo_path = argopt;
+				return;
+			}
+			if ((argopt = match_argopt("pgo-use")))
+			{
+				if (!*argopt) error_exit("error: --pgo-use requires a profile data file path.");
+				if (!file_exists(argopt)) error_exit("error: Profile file '%s' does not exist.", argopt);
+				options->pgo_mode = PGO_USE;
+				options->pgo_path = argopt;
+				return;
+			}
 			if ((argopt = match_argopt("link-libc")))
 			{
 				options->link_libc = parse_opt_select(LinkLibc, argopt, on_off);
@@ -1736,6 +1759,8 @@ BuildOptions parse_arguments(int argc, const char *argv[])
 		.unroll_loops = UNROLL_LOOPS_NOT_SET,
 		.merge_functions = MERGE_FUNCTIONS_NOT_SET,
 		.slp_vectorization = VECTORIZATION_NOT_SET,
+		.lto_mode = LTO_NOT_SET,
+		.pgo_mode = PGO_NOT_SET,
 		.loop_vectorization = VECTORIZATION_NOT_SET,
 		.linux_libc = LINUX_LIBC_NOT_SET,
 		.files = NULL,

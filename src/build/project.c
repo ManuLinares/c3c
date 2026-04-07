@@ -36,6 +36,7 @@ const char *project_default_keys[][2] = {
 		{"linux-crtbegin", "Set the directory to use for finding crtbegin.o and related files."},
 		{"linux-libc", "Set the libc to use for Linux. Valid options are 'host', 'gnu' and 'musl', default is 'host'"},
 		{"loop-vectorize", "Force enable/disable loop auto-vectorization."},
+		{"lto", "Set link-time optimization mode: none, thin, full."},
 		{"macos-min-version", "Set the minimum MacOS version to compile for."},
 		{"macos-sdk", "Set the directory for the MacOS SDK for cross compilation."},
 		{"macos-sdk-version", "Set the MacOS SDK compiled for." },
@@ -47,6 +48,8 @@ const char *project_default_keys[][2] = {
 		{"optsize", "Code size optimization: none, small, tiny."},
 		{"output", "Output location, relative to project file."},
 		{"panic-msg", "Turn panic message output on or off."},
+		{"pgo-generate", "Build with PGO instrumentation, writing profiles to this directory."},
+		{"pgo-use", "Build using PGO profile data from this file."},
 		{"panicfn", "Override the panic function."},
 		{"quiet", "Silence unnecessary output."},
 		{"reloc", "Relocation model: none, pic, PIC, pie, PIE."},
@@ -124,6 +127,7 @@ const char* project_target_keys[][2] = {
 		{"linux-crtbegin", "Set the directory to use for finding crtbegin.o and related files."},
 		{"linux-libc", "Set the libc to use for Linux. Valid options are 'host', 'gnu' and 'musl', default is 'host'"},
 		{"loop-vectorize", "Force enable/disable loop auto-vectorization."},
+		{"lto", "Set link-time optimization mode: none, thin, full."},
 		{"macos-min-version", "Set the minimum MacOS version to compile for."},
 		{"macos-sdk", "Set the directory for the MacOS SDK for cross compilation."},
 		{"macos-sdk-version", "Set the MacOS SDK compiled for." },
@@ -136,6 +140,8 @@ const char* project_target_keys[][2] = {
 		{"optsize", "Code size optimization: none, small, tiny."},
 		{"output", "Output location, relative to project file."},
 		{"panic-msg", "Turn panic message output on or off."},
+		{"pgo-generate", "Build with PGO instrumentation, writing profiles to this directory."},
+		{"pgo-use", "Build using PGO profile data from this file."},
 		{"panicfn", "Override the panic function."},
 		{"quiet", "Silence unnecessary output."},
 		{"reloc", "Relocation model: none, pic, PIC, pie, PIE."},
@@ -326,6 +332,15 @@ static void load_into_build_target(BuildParseContext context, JSONObject *json, 
 	target->slp_vectorization = (AutoVectorization)get_valid_bool(context, json, "slp-vectorize", target->slp_vectorization);
 	target->unroll_loops = (UnrollLoops)get_valid_bool(context, json, "unroll-loops", target->unroll_loops);
 	target->merge_functions = (MergeFunctions)get_valid_bool(context, json, "merge-functions", target->merge_functions);
+
+	// LTO mode
+	target->lto_mode = GET_SETTING(LtoMode, "lto", lto_options, "`none`, `thin`, `full`.");
+
+	// PGO mode
+	const char *pgo_gen = get_optional_string(context, json, "pgo-generate");
+	if (pgo_gen) { target->pgo_mode = PGO_INSTRUMENT; target->pgo_path = pgo_gen; }
+	const char *pgo_use = get_optional_string(context, json, "pgo-use");
+	if (pgo_use) { target->pgo_mode = PGO_USE; target->pgo_path = pgo_use; }
 
 	static const char *opt_settings[8] = {
 			[OPT_SETTING_O0] = "O0",

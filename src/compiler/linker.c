@@ -966,6 +966,66 @@ static bool linker_setup(const char ***args_ref, const char **files_to_link, uns
 		if (compiler.build.feature.sanitize_thread) add_plain_arg("-fsanitize=thread");
 	}
 
+	// PGO instrumentation requires compiler-rt profile runtime
+	if (compiler.build.pgo_mode == PGO_INSTRUMENT && linker_type != LINKER_CC)
+	{
+		const char *arch_name;
+		switch (compiler.platform.arch)
+		{
+			case ARCH_TYPE_X86_64: arch_name = "x86_64"; break;
+			case ARCH_TYPE_AARCH64:
+			case ARCH_TYPE_AARCH64_BE: arch_name = "aarch64"; break;
+			case ARCH_TYPE_X86: arch_name = "i386"; break;
+			case ARCH_TYPE_RISCV64: arch_name = "riscv64"; break;
+			default: arch_name = "unknown"; break;
+		}
+		// Search: /usr/lib/llvm-<ver>/lib/clang/<ver>/lib/linux/libclang_rt.profile-<arch>.a
+		scratch_buffer_clear();
+		scratch_buffer_printf("/usr/lib/llvm-%d/lib/clang/%d/lib/linux/libclang_rt.profile-%s.a",
+			llvm_version_major, llvm_version_major, arch_name);
+		const char *rt_path = scratch_buffer_copy();
+		if (file_exists(rt_path))
+		{
+			add_plain_arg("--whole-archive");
+			add_plain_arg(rt_path);
+			add_plain_arg("--no-whole-archive");
+		}
+		else
+		{
+			// Try without llvm- prefix: /usr/lib/clang/<ver>/lib/linux/...
+			scratch_buffer_clear();
+			scratch_buffer_printf("/usr/lib/clang/%d/lib/linux/libclang_rt.profile-%s.a",
+				llvm_version_major, arch_name);
+			rt_path = scratch_buffer_copy();
+			if (file_exists(rt_path))
+			{
+				add_plain_arg("--whole-archive");
+				add_plain_arg(rt_path);
+				add_plain_arg("--no-whole-archive");
+			}
+			else
+			{
+				error_exit("Could not find libclang_rt.profile-%s.a. "
+					"Install compiler-rt (e.g., 'apt install libclang-rt-%d-dev').",
+					arch_name, llvm_version_major);
+			}
+		}
+	}
+
+	// LTO linker flags (LLD-only, not for system CC linker)
+	if (compiler.build.lto_mode != LTO_NONE && linker_type != LINKER_CC)
+	{
+		int lto_opt = compiler.build.optlevel;
+		if (lto_opt > 3) lto_opt = 3;
+		scratch_buffer_clear();
+		scratch_buffer_printf("--lto-O%d", lto_opt);
+		add_plain_arg(scratch_buffer_copy());
+		if (compiler.build.lto_mode == LTO_THIN)
+		{
+			add_plain_arg("--thinlto-jobs=0");
+		}
+	}
+
 	return true;
 }
 #undef add_arg2

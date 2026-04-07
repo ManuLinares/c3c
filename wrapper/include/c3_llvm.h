@@ -64,6 +64,9 @@ typedef struct
 		bool slp_vectorize;
 		bool merge_functions;
 	} opt;
+	int lto_mode;  // 0=none, 1=thin, 2=full
+	int pgo_mode;  // 0=none, 1=instrument, 2=use
+	const char *pgo_path;
 } LLVMPasses;
 
 bool llvm_run_passes(LLVMModuleRef m, LLVMTargetMachineRef tm, LLVMPasses *passes);

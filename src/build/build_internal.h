@@ -62,6 +62,12 @@ static const char *linker_kind[3] = {
 	[LINKER_TYPE_CUSTOM] = "custom"
 };
 
+static const char *lto_options[3] = {
+	[LTO_NONE] = "none",
+	[LTO_THIN] = "thin",
+	[LTO_FULL] = "full",
+};
+
 static const char *on_off[2] = {
 	[0] = "no",
 	[1] = "yes",

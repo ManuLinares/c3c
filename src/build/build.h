@@ -249,6 +249,9 @@ typedef struct BuildOptions_
 	MergeFunctions merge_functions;
 	AutoVectorization loop_vectorization;
 	AutoVectorization slp_vectorization;
+	LtoMode lto_mode;
+	PgoMode pgo_mode;
+	const char *pgo_path;
 	bool emit_llvm;
 	bool emit_asm;
 	bool benchmark_mode;
@@ -437,6 +440,9 @@ typedef struct
 	UnrollLoops unroll_loops;
 	AutoVectorization loop_vectorization;
 	AutoVectorization slp_vectorization;
+	LtoMode lto_mode;
+	PgoMode pgo_mode;
+	const char *pgo_path;
 	RelocModel reloc_model;
 	ArchOsTarget arch_os_target;
 	CompilerBackend backend;

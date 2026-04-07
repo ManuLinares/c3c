@@ -7,6 +7,7 @@
 #include "c3_llvm.h"
 #include <llvm-c/Comdat.h>
 #include <llvm-c/Linker.h>
+#include <llvm-c/BitWriter.h>
 #include <llvm-c/Transforms/PassBuilder.h>
 const char *varargslots_name = "varargslots";
 const char *temp_name = "$$temp";
@@ -1094,7 +1095,10 @@ static inline void llvm_optimize(GenContext *c)
 			.opt.merge_functions = compiler.build.merge_functions == MERGE_FUNCTIONS_ON,
 			.sanitizer.address_sanitize = compiler.build.feature.sanitize_address,
 			.sanitizer.mem_sanitize = compiler.build.feature.sanitize_memory,
-			.sanitizer.thread_sanitize = compiler.build.feature.sanitize_thread
+			.sanitizer.thread_sanitize = compiler.build.feature.sanitize_thread,
+			.lto_mode = compiler.build.lto_mode,
+			.pgo_mode = compiler.build.pgo_mode,
+			.pgo_path = compiler.build.pgo_path,
 	};
 	if (!llvm_run_passes(c->module, c->machine, &passes))
 	{
@@ -1124,7 +1128,17 @@ const char *llvm_codegen(void *context)
 
 	if (compiler.build.emit_object_files)
 	{
-		llvm_emit_file(c, c->object_filename, LLVMObjectFile, false);
+		if (compiler.build.lto_mode != LTO_NONE)
+		{
+			if (LLVMWriteBitcodeToFile(c->module, c->object_filename))
+			{
+				error_exit("Could not emit bitcode to '%s'.", c->object_filename);
+			}
+		}
+		else
+		{
+			llvm_emit_file(c, c->object_filename, LLVMObjectFile, false);
+		}
 		object_name = c->object_filename;
 	}
 

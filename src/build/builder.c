@@ -479,6 +479,9 @@ static void update_build_target_from_options(BuildTarget *target, BuildOptions *
 	set_if_updated(target->merge_functions, options->merge_functions);
 	set_if_updated(target->loop_vectorization, options->loop_vectorization);
 	set_if_updated(target->slp_vectorization, options->slp_vectorization);
+	set_if_updated(target->lto_mode, options->lto_mode);
+	set_if_updated(target->pgo_mode, options->pgo_mode);
+	if (options->pgo_path) target->pgo_path = options->pgo_path;
 	set_if_updated(target->validation_level, options->validation_level);
 	set_if_updated(target->feature.safe_mode, options->safety_level);
 	set_if_updated(target->feature.panic_level, options->panic_level);

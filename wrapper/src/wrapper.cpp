@@ -24,6 +24,8 @@
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
+#include "llvm/Support/PGOOptions.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
@@ -154,7 +156,19 @@ bool llvm_run_passes(LLVMModuleRef m, LLVMTargetMachineRef tm, LLVMPasses *passe
 	PTO.CallGraphProfile = true; // We always use integrated ASM
 	PTO.UnifiedLTO = false;
 
-	llvm::PassBuilder PB(Machine, PTO, std::nullopt, &PIC);
+	std::optional<llvm::PGOOptions> PGOOpt;
+	if (passes->pgo_mode == 1) // PGO_INSTRUMENT
+	{
+		PGOOpt = llvm::PGOOptions("", "", "", "",
+			llvm::PGOOptions::IRInstr);
+	}
+	else if (passes->pgo_mode == 2) // PGO_USE
+	{
+		PGOOpt = llvm::PGOOptions(passes->pgo_path, "", "", "",
+			llvm::PGOOptions::IRUse);
+	}
+
+	llvm::PassBuilder PB(Machine, PTO, PGOOpt, &PIC);
 
 	llvm::LoopAnalysisManager LAM;
 	llvm::FunctionAnalysisManager FAM;
@@ -198,11 +212,23 @@ bool llvm_run_passes(LLVMModuleRef m, LLVMTargetMachineRef tm, LLVMPasses *passe
 		default:
 			exit(-1);
 	}
+	llvm::ModulePassManager MPM;
+	switch (passes->lto_mode)
+	{
+		case 1: // LTO_THIN
+			MPM = PB.buildThinLTOPreLinkDefaultPipeline(level);
+			break;
+		case 2: // LTO_FULL
+			MPM = PB.buildLTOPreLinkDefaultPipeline(level);
+			break;
+		default: // LTO_NONE
 #if LLVM_VERSION_MAJOR > 19
-	llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(level, llvm::ThinOrFullLTOPhase::None);
+			MPM = PB.buildPerModuleDefaultPipeline(level, llvm::ThinOrFullLTOPhase::None);
 #else
-	llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(level, false);
+			MPM = PB.buildPerModuleDefaultPipeline(level, false);
 #endif
+			break;
+	}
 	if (passes->should_verify)
 	{
 		MPM.addPass(llvm::VerifierPass());

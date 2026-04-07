@@ -137,6 +137,22 @@ typedef enum
 
 typedef enum
 {
+	LTO_NOT_SET = -1,
+	LTO_NONE = 0,
+	LTO_THIN,
+	LTO_FULL,
+} LtoMode;
+
+typedef enum
+{
+	PGO_NOT_SET = -1,
+	PGO_NONE = 0,
+	PGO_INSTRUMENT,
+	PGO_USE,
+} PgoMode;
+
+typedef enum
+{
 	VECTORIZATION_NOT_SET = -1,
 	VECTORIZATION_OFF = 0,
 	VECTORIZATION_ON = 1

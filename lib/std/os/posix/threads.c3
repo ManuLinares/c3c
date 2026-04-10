@@ -103,6 +103,7 @@ typedef Pthread_once_t = ulong[2];
 typedef Pthread_rwlock_t = ulong[25];
 typedef Pthread_rwlockattr_t = ulong[3];
 
+
 module std::thread::os @if(env::LINUX || env::ANDROID);
 typedef Pthread_attr_t = ulong[7]; // 24 on 32bit
 typedef Pthread_cond_t = ulong[6];
@@ -114,10 +115,15 @@ typedef Pthread_once_t = int;
 typedef Pthread_rwlock_t = ulong[7]; // 32 on 3bit
 typedef Pthread_rwlockattr_t = uint;
 
-union Sem_t
+union Sem_t @if (env::LINUX)
 {
-    char[32] __size;
-    CLong __align;
+	char[32] __size;
+	CLong __align;
+}
+
+union Sem_t @if (env::ANDROID)
+{
+	CUInt[4] __private;
 }
 
 extern fn CInt sem_init(Sem_t* sem, CInt pshared, CUInt value);

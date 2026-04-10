@@ -199,7 +199,7 @@ fn void* callback(void* arg) @private
 	current_thread = *thread;
 	$if ANDROID_LINUX:
 		thread.tid = (Pid_t)@syscall(libc::SYS_GETTID);
-		//os::sem_post(&thread.sem);
+		os::sem_post(&thread.sem);
 	$endif
 	return (void*)(iptr)thread.thread_fn(thread.arg);
 }
@@ -262,15 +262,15 @@ fn void? NativeThread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSetti
 		}
 	}
 	$if ANDROID_LINUX:
-		//os::sem_init(&thread.sem, 0, 0);
-		//defer os::sem_destroy(&thread.sem);
+		os::sem_init(&thread.sem, 0, 0);
+		defer os::sem_destroy(&thread.sem);
 	$endif
 	if (posix::pthread_create(&thread.pthread, null, &callback, thread) != 0)
 	{
 		return thread::INIT_FAILED~;
 	}
 	$if ANDROID_LINUX:
-		//os::sem_wait(&thread.sem);
+		os::sem_wait(&thread.sem);
 	$endif
 	assert(settings.priority.ordinal >= 0);
 	if (settings.priority != DEFAULT) thread.set_priority(settings.priority);

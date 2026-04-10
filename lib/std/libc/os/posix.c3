@@ -35,7 +35,6 @@ alias SigActionFunction =  fn void(CInt, void*, void*);
 
 struct Sigaction
 {
-	CInt sa_flags @if(env::ANDROID);
 	union
 	{
 		SignalFunction      sa_handler;
@@ -46,7 +45,7 @@ struct Sigaction
     Sigset_t   sa_mask  @if(env::DARWIN || env::BSD_FAMILY);
 
     Sigset_t   sa_mask     @if(env::LINUX || env::ANDROID);
-    CInt       sa_flags    @if(env::LINUX);
+    CInt       sa_flags    @if(env::LINUX || env::ANDROID);
     void*      sa_restorer @if(env::LINUX || env::ANDROID);
 }
 

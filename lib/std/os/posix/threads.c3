@@ -116,15 +116,30 @@ union Sem_t @if (env::ANDROID)
 }
 
 module std::thread::os @if(env::LINUX);
-typedef Pthread_attr_t = ulong[7]; // 24 on 32bit
+typedef Pthread_attr_t = ulong[7];
 typedef Pthread_cond_t = ulong[6];
 typedef Pthread_condattr_t = uint;
 typedef Pthread_key_t = uint;
-typedef Pthread_mutex_t = ulong[5]; // 24 on 32 bit
+typedef Pthread_mutex_t = ulong[5];
 typedef Pthread_mutexattr_t = uint;
 typedef Pthread_once_t = int;
-typedef Pthread_rwlock_t = ulong[7]; // 32 on 3bit
+typedef Pthread_rwlock_t = ulong[7];
 typedef Pthread_rwlockattr_t = uint;
+
+
+module std::thread::os @if(env::ANDROID);
+typedef Pthread_attr_t = ulong[7];
+typedef Pthread_cond_t = ulong[6];
+typedef Pthread_condattr_t = ulong;
+typedef Pthread_key_t = uint;
+typedef Pthread_mutex_t = ulong[5];
+typedef Pthread_mutexattr_t = ulong;
+typedef Pthread_once_t = int;
+typedef Pthread_rwlock_t = ulong[7];
+typedef Pthread_rwlockattr_t = ulong;
+
+
+module std::thread::os @if(env::LINUX || env::ANDROID);
 
 union Sem_t @if (env::LINUX)
 {

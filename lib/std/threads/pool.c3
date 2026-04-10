@@ -33,19 +33,13 @@ struct QueueItem @private
 fn void? ThreadPool.init(&self, ThreadSettings thread_settings = {})
 {
 	defer catch self.destroy();
-	assert(thread_settings.priority.ordinal >= 0, "Ok 1");
 	*self = { .num_threads = SIZE, .initialized = true };
-	assert(thread_settings.priority.ordinal >= 0, "Ok 2");
 	self.mu.init()!;
-	assert(thread_settings.priority.ordinal >= 0, "Ok 3");
 	self.notify.init()!;
-	assert(thread_settings.priority.ordinal >= 0, "Ok 4");
 	self.collect.init()!;
-	assert(thread_settings.priority.ordinal >= 0, "Ok 5");
-	foreach (i, &thread : self.pool)
+	foreach (&thread : self.pool)
 	{
-		assert(thread_settings.priority.ordinal >= 0, "Ok: %d", i);
-		thread.create(&process_work, self)!;
+		thread.create(&process_work, self, thread_settings)!;
 		// The thread resources will be cleaned up when the thread exits.
 		thread.detach()!;
 	}

@@ -272,6 +272,7 @@ fn void? NativeThread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSetti
 	$if ANDROID_LINUX:
 		os::sem_wait(&thread.sem);
 	$endif
+	assert(settings.priority.ordinal >= 0);
 	if (settings.priority != DEFAULT) thread.set_priority(settings.priority);
 }
 

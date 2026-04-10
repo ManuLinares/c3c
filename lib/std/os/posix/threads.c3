@@ -92,7 +92,14 @@ extern fn int sched_yield();
 
 struct Pthread_sched_param { int sched_priority;  char[4] __opaque @if(env::DARWIN); }
 
-module std::thread::os @if(env::POSIX && !env::LINUX && !env::ANDROID && !env::NETBSD);
+module std::thread::os @if(env::LINUX || env::ANDROID);
+
+extern fn CInt sem_init(Sem_t* sem, CInt pshared, CUInt value);
+extern fn CInt sem_wait(Sem_t* sem);
+extern fn CInt sem_post(Sem_t* sem);
+extern fn CInt sem_destroy(Sem_t* sem);
+
+module std::thread::os @if(env::POSIX && !env::LINUX && !env::NETBSD);
 typedef Pthread_attr_t = ulong[8];
 typedef Pthread_cond_t = ulong[6];
 typedef Pthread_condattr_t = ulong[8];
@@ -103,8 +110,12 @@ typedef Pthread_once_t = ulong[2];
 typedef Pthread_rwlock_t = ulong[25];
 typedef Pthread_rwlockattr_t = ulong[3];
 
+union Sem_t @if (env::ANDROID)
+{
+	CUInt[4] __private;
+}
 
-module std::thread::os @if(env::LINUX || env::ANDROID);
+module std::thread::os @if(env::LINUX);
 typedef Pthread_attr_t = ulong[7]; // 24 on 32bit
 typedef Pthread_cond_t = ulong[6];
 typedef Pthread_condattr_t = uint;
@@ -120,16 +131,6 @@ union Sem_t @if (env::LINUX)
 	char[32] __size;
 	CLong __align;
 }
-
-union Sem_t @if (env::ANDROID)
-{
-	CUInt[4] __private;
-}
-
-extern fn CInt sem_init(Sem_t* sem, CInt pshared, CUInt value);
-extern fn CInt sem_wait(Sem_t* sem);
-extern fn CInt sem_post(Sem_t* sem);
-extern fn CInt sem_destroy(Sem_t* sem);
 
 module std::thread::os @if(env::NETBSD);
 typedef Pthread_attr_t = ulong[2];

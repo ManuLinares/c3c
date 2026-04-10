@@ -21,6 +21,8 @@ extern fn Pthread_t pthread_self();
 extern fn Errno pthread_setcancelstate(CInt state, CInt* oldstate);
 extern fn Errno pthread_setcanceltype(CInt type, CInt* oldtype);
 extern fn Errno pthread_testcancel();
+extern fn Errno pthread_setschedparam(Pthread_t thread, CInt policy, Pthread_sched_param* param);
+extern fn Errno pthread_getschedparam(Pthread_t thread, CInt* policy, Pthread_sched_param* param);
 
 extern fn Errno pthread_attr_destroy(Pthread_attr_t*);
 extern fn Errno pthread_attr_getinheritsched(Pthread_attr_t*, CInt*);
@@ -88,7 +90,9 @@ extern fn void pthread_cleanup_push(PosixThreadFn routine, void* routine_arg);
 
 extern fn int sched_yield();
 
-module std::thread::os @if(env::POSIX && !env::LINUX && !env::NETBSD);
+struct Pthread_sched_param { int sched_priority;  char[4] __opaque @if(env::DARWIN); }
+
+module std::thread::os @if(env::POSIX && !env::LINUX && !env::ANDROID && !env::NETBSD);
 typedef Pthread_attr_t = ulong[8];
 typedef Pthread_cond_t = ulong[6];
 typedef Pthread_condattr_t = ulong[8];
@@ -98,9 +102,8 @@ typedef Pthread_mutexattr_t = ulong[2];
 typedef Pthread_once_t = ulong[2];
 typedef Pthread_rwlock_t = ulong[25];
 typedef Pthread_rwlockattr_t = ulong[3];
-typedef Pthread_sched_param = ulong;
 
-module std::thread::os @if(env::LINUX);
+module std::thread::os @if(env::LINUX || env::ANDROID);
 typedef Pthread_attr_t = ulong[7]; // 24 on 32bit
 typedef Pthread_cond_t = ulong[6];
 typedef Pthread_condattr_t = uint;
@@ -110,7 +113,17 @@ typedef Pthread_mutexattr_t = uint;
 typedef Pthread_once_t = int;
 typedef Pthread_rwlock_t = ulong[7]; // 32 on 3bit
 typedef Pthread_rwlockattr_t = uint;
-typedef Pthread_sched_param = uint;
+
+union Sem_t
+{
+    char[32] __size;
+    CLong __align;
+}
+
+extern fn CInt sem_init(Sem_t* sem, CInt pshared, CUInt value);
+extern fn CInt sem_wait(Sem_t* sem);
+extern fn CInt sem_post(Sem_t* sem);
+extern fn CInt sem_destroy(Sem_t* sem);
 
 module std::thread::os @if(env::NETBSD);
 typedef Pthread_attr_t = ulong[2];
@@ -120,7 +133,6 @@ typedef Pthread_key_t = uint;
 typedef Pthread_mutexattr_t = ulong[2];
 typedef Pthread_rwlock_t = ulong[8];
 typedef Pthread_rwlockattr_t = ulong[2];
-typedef Pthread_sched_param = int;
 
 typedef Pthread_mutex_t @if(env::X86_64)= ulong[6];
 typedef Pthread_once_t @if(env::X86_64) = ulong[7];

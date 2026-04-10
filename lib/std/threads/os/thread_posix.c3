@@ -16,11 +16,11 @@ alias NativeConditionVariable = Pthread_cond_t;
 
 struct NativeThread
 {
-	Sem_t sem @if (ANDROID_LINUX);
-	Pid_t tid @if (ANDROID_LINUX);
 	Pthread_t pthread;
 	ThreadFn thread_fn;
-	void* arg;
+    void* arg;
+    Sem_t sem @if (ANDROID_LINUX);
+    Pid_t tid @if (ANDROID_LINUX);
 }
 
 alias NativeOnceFlag = Pthread_once_t;
@@ -198,8 +198,8 @@ fn void* callback(void* arg) @private
 	NativeThread* thread = arg;
 	current_thread = *thread;
 	$if ANDROID_LINUX:
-		//thread.tid = (Pid_t)@syscall(libc::SYS_GETTID);
-		//os::sem_post(&thread.sem);
+		thread.tid = (Pid_t)@syscall(libc::SYS_GETTID);
+		os::sem_post(&thread.sem);
 	$endif
 	return (void*)(iptr)thread.thread_fn(thread.arg);
 }
@@ -209,8 +209,6 @@ fn bool NativeThread.set_priority(&self, ThreadPriority priority)
 	if (priority == DEFAULT) priority = NORMAL;
 	$switch:
 		$case ANDROID_LINUX:
-			return false;
-			/*
 			if (priority == REALTIME)
 			{
 				Pthread_sched_param param =  { .sched_priority = 1 };
@@ -218,7 +216,7 @@ fn bool NativeThread.set_priority(&self, ThreadPriority priority)
 			}
 			if (!self.tid) return false;
 			const CInt[4] NICE_TABLE = { 19, 5, 0, -5 };
-			return !libc::setpriority(libc::PRIO_PROCESS, (CInt)self.tid, NICE_TABLE[priority.ordinal - 1]);*/
+			return !libc::setpriority(libc::PRIO_PROCESS, (CInt)self.tid, NICE_TABLE[priority.ordinal - 1]);
 		$case $defined(libc::SCHED_OTHER, libc::sched_get_priority_min) && !env::OPENBSD:
 			Pthread_sched_param param @noinit;
 			if (priority == REALTIME)
@@ -248,13 +246,13 @@ fn bool NativeThread.set_priority(&self, ThreadPriority priority)
 *>
 fn void? NativeThread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSettings settings)
 {
-	assert(settings.priority.ordinal >= 0, "Prio must be non negative initially initially %p, %p, %p, %s %s", thread, thread_fn, arg, settings.stack_size, settings.priority.ordinal);
+//	assert(settings.priority.ordinal >= 0, "Prio must be non negative initially initially %p, %p, %p, %s %s", thread, thread_fn, arg, settings.stack_size, settings.priority.ordinal);
 	thread.thread_fn = thread_fn;
 	thread.arg = arg;
 	Pthread_attr_t attr;
 	Pthread_attr_t* attr_ptr = null;
 	defer if (attr_ptr) posix::pthread_attr_destroy(attr_ptr);
-	assert(settings.priority.ordinal >= 0, "Prio must be non negative initially");
+//	assert(settings.priority.ordinal >= 0, "Prio must be non negative initially");
 	if (settings.stack_size > 0)
 	{
 		if (posix::pthread_attr_init(&attr)) return thread::INIT_FAILED~;
@@ -264,21 +262,21 @@ fn void? NativeThread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSetti
 			if (posix::pthread_attr_setstacksize(attr_ptr, settings.stack_size)) return thread::INVALID_THREAD_SETTINGS~;
 		}
 	}
-	assert(settings.priority.ordinal >= 0, "Prio must be non negative to begin with");
+//	assert(settings.priority.ordinal >= 0, "Prio must be non negative to begin with");
 	$if ANDROID_LINUX:
-		//os::sem_init(&thread.sem, 0, 0);
-		//defer os::sem_destroy(&thread.sem);
+		os::sem_init(&thread.sem, 0, 0);
+		defer os::sem_destroy(&thread.sem);
 	$endif
-	assert(settings.priority.ordinal >= 0, "Prio must be non negative before creation");
+//	assert(settings.priority.ordinal >= 0, "Prio must be non negative before creation");
 	if (posix::pthread_create(&thread.pthread, null, &callback, thread) != 0)
 	{
 		return thread::INIT_FAILED~;
 	}
 	$if ANDROID_LINUX:
-		//os::sem_wait(&thread.sem);
+		os::sem_wait(&thread.sem);
 	$endif
-	assert(settings.priority.ordinal >= 0, "Prio must be non negative");
-	if (settings.priority != DEFAULT) thread.set_priority(settings.priority);
+//	assert(settings.priority.ordinal >= 0, "Prio must be non negative");
+//	if (settings.priority != DEFAULT) thread.set_priority(settings.priority);
 }
 
 fn void NativeThread.detach(thread)

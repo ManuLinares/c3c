@@ -57,7 +57,7 @@ macro void TimedMutex.unlock(&mutex) => NativeTimedMutex.unlock((NativeTimedMute
 struct ThreadSettings
 {
 	sz stack_size;
-	ThreadPriority priority;
+	// ThreadPriority priority;
 }
 
 macro void fence(AtomicOrdering $ordering) @safemacro
@@ -109,7 +109,7 @@ macro void? ConditionVariable.wait_until(&cond, Mutex* mutex, Time time)
 *>
 macro void? Thread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSettings settings = { })
 {
-	assert(settings.priority.ordinal >= 0, "Prio must be non negative at call %p, %p, %p, %s %s", thread, thread_fn, arg, settings.stack_size, settings.priority.ordinal);
+	//assert(settings.priority.ordinal >= 0, "Prio must be non negative at call %p, %p, %p, %s %s", thread, thread_fn, arg, settings.stack_size, settings.priority.ordinal);
 	return NativeThread.create(thread, thread_fn, arg, settings);
 }
 

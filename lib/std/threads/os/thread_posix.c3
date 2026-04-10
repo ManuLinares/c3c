@@ -246,6 +246,7 @@ fn bool NativeThread.set_priority(&self, ThreadPriority priority)
 *>
 fn void? NativeThread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSettings settings)
 {
+	assert(settings.priority.ordinal >= 0, "Prio must be non negative initially initially");
 	thread.thread_fn = thread_fn;
 	thread.arg = arg;
 	Pthread_attr_t attr;

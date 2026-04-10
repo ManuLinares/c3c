@@ -57,7 +57,7 @@ macro void TimedMutex.unlock(&mutex) => NativeTimedMutex.unlock((NativeTimedMute
 struct ThreadSettings
 {
 	sz stack_size;
-	// ThreadPriority priority;
+	ThreadPriority priority;
 }
 
 macro void fence(AtomicOrdering $ordering) @safemacro
@@ -107,10 +107,9 @@ macro void? ConditionVariable.wait_until(&cond, Mutex* mutex, Time time)
  @require thread_fn != null : "A non null thread function is required"
  @return? thread::INIT_FAILED, thread::INVALID_THREAD_SETTINGS
 *>
-macro void? Thread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSettings settings = { })
+macro void? Thread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSettings settings = {})
 {
-	//assert(settings.priority.ordinal >= 0, "Prio must be non negative at call %p, %p, %p, %s %s", thread, thread_fn, arg, settings.stack_size, settings.priority.ordinal);
-	return NativeThread.create(thread, thread_fn, arg);
+	return NativeThread.create(thread, thread_fn, arg, settings);
 }
 
 macro void? Thread.detach(thread) @maydiscard => NativeThread.detach(thread);

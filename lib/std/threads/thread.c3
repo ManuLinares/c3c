@@ -107,7 +107,7 @@ macro void? ConditionVariable.wait_until(&cond, Mutex* mutex, Time time)
  @require thread_fn != null : "A non null thread function is required"
  @return? thread::INIT_FAILED, thread::INVALID_THREAD_SETTINGS
 *>
-macro void? Thread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSettings settings = {})
+macro void? Thread.create(&thread, ThreadFn thread_fn, void* arg, ThreadSettings settings = { .priority = NORMAL })
 {
 	assert(settings.priority.ordinal >= 0, "Prio must be non negative at call %p, %p, %p, %s %s", thread, thread_fn, arg, settings.stack_size, settings.priority.ordinal);
 	return NativeThread.create(thread, thread_fn, arg, settings);

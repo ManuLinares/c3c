@@ -16,11 +16,11 @@ alias NativeConditionVariable = Pthread_cond_t;
 
 struct NativeThread
 {
+	Sem_t sem @if (ANDROID_LINUX);
+	Pid_t tid @if (ANDROID_LINUX);
 	Pthread_t pthread;
 	ThreadFn thread_fn;
-    void* arg;
-    //Sem_t sem @if (ANDROID_LINUX);
-    //Pid_t tid @if (ANDROID_LINUX);
+	void* arg;
 }
 
 alias NativeOnceFlag = Pthread_once_t;

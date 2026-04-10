@@ -19,8 +19,8 @@ struct NativeThread
 	Pthread_t pthread;
 	ThreadFn thread_fn;
     void* arg;
-    Sem_t sem @if (ANDROID_LINUX);
-    Pid_t tid @if (ANDROID_LINUX);
+    //Sem_t sem @if (ANDROID_LINUX);
+    //Pid_t tid @if (ANDROID_LINUX);
 }
 
 alias NativeOnceFlag = Pthread_once_t;
@@ -209,6 +209,8 @@ fn bool NativeThread.set_priority(&self, ThreadPriority priority)
 	if (priority == DEFAULT) priority = NORMAL;
 	$switch:
 		$case ANDROID_LINUX:
+			return false;
+			/*
 			if (priority == REALTIME)
 			{
 				Pthread_sched_param param =  { .sched_priority = 1 };
@@ -216,7 +218,7 @@ fn bool NativeThread.set_priority(&self, ThreadPriority priority)
 			}
 			if (!self.tid) return false;
 			const CInt[4] NICE_TABLE = { 19, 5, 0, -5 };
-			return !libc::setpriority(libc::PRIO_PROCESS, (CInt)self.tid, NICE_TABLE[priority.ordinal - 1]);
+			return !libc::setpriority(libc::PRIO_PROCESS, (CInt)self.tid, NICE_TABLE[priority.ordinal - 1]);*/
 		$case $defined(libc::SCHED_OTHER, libc::sched_get_priority_min) && !env::OPENBSD:
 			Pthread_sched_param param @noinit;
 			if (priority == REALTIME)

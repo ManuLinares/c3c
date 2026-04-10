@@ -39,7 +39,7 @@ fn void? ThreadPool.init(&self, ThreadSettings thread_settings = {})
 	self.collect.init()!;
 	foreach (&thread : self.pool)
 	{
-		thread.create(&process_work, self, thread_settings)!;
+		thread.create(&process_work, self)!;
 		// The thread resources will be cleaned up when the thread exits.
 		thread.detach()!;
 	}

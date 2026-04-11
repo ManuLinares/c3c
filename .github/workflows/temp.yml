@@ -1,0 +1,54 @@
+name: Build 0.7.10 Static
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux-0-7-10-static:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.23
+    steps:
+      - name: Prepare Git
+        run: |
+          apk add --no-cache git
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: v0.7.10
+
+      - name: Install dependencies
+        run: |
+          apk update
+          apk add \
+            build-base bash cmake ninja python3 linux-headers \
+            zlib-dev zlib-static zstd-dev zstd-static curl-dev curl-static \
+            openssl-libs-static brotli-static nghttp2-static libpsl-static \
+            libidn2-static libunistring-static nghttp3-static c-ares-dev \
+            curl-dev openssl-dev brotli-dev libpsl-dev libidn2-dev \
+            libunistring-dev nghttp2-dev nghttp3-dev c-ares-dev
+
+      - name: CMake Build (static musl)
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DC3_FETCH_LLVM=ON \
+            -DC3_LINK_DYNAMIC=OFF \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-static -static-libstdc++ -static-libgcc"
+          cmake --build build
+
+      - name: Verify Static
+        run: |
+          ldd build/c3c || true
+          file build/c3c
+          build/c3c --version
+
+      - name: Bundle
+        run: bash ./scripts/tools/package_build.sh "./build/c3c" "c3-linux-static" "tar"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: c3-linux-static-0.7.10
+          path: c3-linux-static.tar.gz

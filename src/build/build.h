@@ -44,6 +44,7 @@ typedef enum
 	COMMAND_PRINT_SYNTAX,
 	COMMAND_PROJECT,
 	COMMAND_FETCH_SDK,
+	COMMAND_DOCGEN,
 } CompilerCommand;
 
 typedef enum
@@ -397,6 +398,7 @@ typedef struct
 	bool benchmark_output;
 	bool test_output;
 	bool lsp_output;
+	bool docgen;
 	bool output_headers;
 	bool output_ast;
 	bool lex_only;

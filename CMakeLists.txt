@@ -440,6 +440,7 @@ add_executable(c3c
         src/compiler/float.c
         src/compiler/headers.c
         src/compiler/json_output.c
+        src/compiler/docgen.c
         src/compiler/lexer.c
         src/compiler/linker.c
         src/compiler/abi/c_abi_aarch64.c
@@ -510,6 +511,7 @@ add_executable(c3c
         src/build/common_build.c
         src/compiler/sema_const.c
         ${CMAKE_BINARY_DIR}/git_hash.h
+        ${CMAKE_BINARY_DIR}/docs_template.h
 )
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
@@ -524,6 +526,18 @@ else()
             OUTPUT ${CMAKE_BINARY_DIR}/git_hash.h
             COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_LIST_DIR}/git_hash.cmake")
 endif()
+
+# Embed resources/docs.html into a C header
+add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/docs_template.h
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT=${CMAKE_SOURCE_DIR}/resources/docs.html
+            -DOUTPUT=${CMAKE_BINARY_DIR}/docs_template.h
+            -DVAR_NAME=docs_html
+            -P ${CMAKE_SOURCE_DIR}/scripts/embed.cmake
+        DEPENDS ${CMAKE_SOURCE_DIR}/resources/docs.html
+                ${CMAKE_SOURCE_DIR}/scripts/embed.cmake
+        COMMENT "Embedding resources/docs.html into docs_template.h")
 
 if(C3_WITH_LLVM)
     target_sources(c3c PRIVATE

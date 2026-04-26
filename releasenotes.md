@@ -52,7 +52,8 @@
 - Constdef now infers through unary negations.
 - Only used libraries are scanned for dependencies. #3144
 - `$vaconst`, `$vaexpr` and `$vatype` removed.
- 
+- Improve error message on unsupported typeid runtime access at runtime. #3170
+
 ### Stdlib changes
 - `std::collections::RingBuffer` has been renamed `RingList`.
 - Add `List.remove_unordered_at`.
@@ -61,7 +62,7 @@
 - Add `compare_to` and `compare_to_ignore_case` to `String`. #3096
 - Add `SortedMap` based on skip lists.
 - Add `OneShotChannel` to `std::thread::channel` for single-send/single-receive thread synchronization.
-- `BufferedChannel` and `UnbufferedChannel` now pointers, create using `create_unbuffered` and `create_buffered`
+- `BufferedChannel` and `UnbufferedChannel` are now pointers, create using `create_unbuffered` and `create_buffered`
 - `RingList` now conforms to `foreach` and adds additional functions.
 - Ini parser and encoder.
 - Updated `ref::new` argument order.
@@ -82,6 +83,7 @@
 - `std::hash` method name convention changes: `updatec` / `update_char` => `update_byte`.
 - `std::string` name changes: `strip` => `strip_prefix`, `strip_end` => `strip_suffix`.
 - `std::collections::object` added `Object.to_value` to convert from an object to a value.
+- `std::encoding::xml` added for XML parsing and serialization.
 
 ### Fixes
 - Slice comparison lowering would not work correctly in macros in some cases. #3095

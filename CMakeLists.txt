@@ -81,7 +81,14 @@ if(MSVC)
     # Suppresses the LNK4098 mismatch warning in Debug builds
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /NODEFAULTLIB:libcmtd /NODEFAULTLIB:msvcrtd")
 else()
-    add_compile_options(-gdwarf-3 -fno-exceptions)
+    add_compile_options(-fno-exceptions)
+    if (NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(-gdwarf-3)
+    else()
+        if (UNIX AND NOT APPLE)
+            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s")
+        endif()
+    endif()
 
     #add_compile_options(-fsanitize=address,undefined)
     #add_link_options(-fsanitize=address,undefined)
@@ -98,14 +105,156 @@ set(C3_LLD_DIR              ""                          CACHE STRING "Use custom
 set(C3_LLD_INCLUDE_DIR      ""                          CACHE STRING "Use custom LLD include directory")
 set(C3_ENABLE_CLANGD_LSP    OFF                         CACHE BOOL   "Enable/Disable output of compile commands during generation")
 set(C3_FETCH_LLVM           OFF                         CACHE BOOL   "Automatically download LLVM artifacts")
-set(C3_LLVM_TAG             "latest"                    CACHE STRING "Tag/Branch to download LLVM from")
+set(C3_LLVM_TAG             "latest"                    CACHE STRING "Tag/Branch of LLVM `c3lang/llvm-for-c3` artifacts")
 set(LLVM_CRT_LIBRARY_DIR    ""                          CACHE STRING "Use custom llvm's compiler-rt directory")
 set(TCC_LIB_PATH            "/usr/lib/tcc/libtcc1.a"    CACHE STRING "Use custom libtcc1.a path")
 
-if (NOT C3_LINK_DYNAMIC AND CMAKE_EXE_LINKER_FLAGS MATCHES "-static")
-    set(ZLIB_USE_STATIC_LIBS ON)
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    message(STATUS "Static build: Restricting library search to static archives (.a)")
+# Handle static linking logic
+if (NOT C3_LINK_DYNAMIC)
+    if (UNIX AND NOT APPLE AND NOT MSVC)
+        message(STATUS "Static build: Automatically adding -static -static-libstdc++ -static-libgcc")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libstdc++ -static-libgcc")
+
+        # Keep dependencies organized in a separate directory
+        set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/external_libs" CACHE PATH "" FORCE)
+
+        set(ZLIB_USE_STATIC_LIBS ON)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+        message(STATUS "Static build: Restricting library search to static archives (.a)")
+
+        # Fallback for systems without static zlib (like Arch Linux)
+        if (NOT TARGET ZLIB::ZLIB)
+            find_package(ZLIB QUIET)
+        endif()
+        if (NOT TARGET ZLIB::ZLIB)
+            message(STATUS "Static ZLIB not found, fetching zlib-ng (compat)...")
+            FetchContent_Declare(
+                zlib_static
+                URL https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.3.3.tar.gz
+                EXCLUDE_FROM_ALL
+            )
+            set(ZLIB_COMPAT ON CACHE BOOL "" FORCE)
+            set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+            set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+            FetchContent_MakeAvailable(zlib_static)
+
+            if (NOT TARGET ZLIB::ZLIB)
+                if (TARGET zlib)
+                    get_target_property(aliased_target zlib ALIASED_TARGET)
+                    if(aliased_target)
+                        add_library(ZLIB::ZLIB ALIAS ${aliased_target})
+                    else()
+                        add_library(ZLIB::ZLIB ALIAS zlib)
+                    endif()
+                elseif(TARGET zlibstatic)
+                    add_library(ZLIB::ZLIB ALIAS zlibstatic)
+                endif()
+            endif()
+        endif()
+
+        # Fallback for systems without static zstd
+        if (NOT TARGET zstd::libzstd_static)
+            find_package(zstd QUIET)
+        endif()
+        if (NOT TARGET zstd::libzstd_static)
+            message(STATUS "Static ZSTD not found, fetching zstd...")
+            FetchContent_Declare(
+                zstd_static
+                URL https://github.com/facebook/zstd/archive/refs/tags/v1.5.7.tar.gz
+                SOURCE_SUBDIR build/cmake
+                EXCLUDE_FROM_ALL
+            )
+            set(ZSTD_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+            set(ZSTD_BUILD_STATIC ON CACHE BOOL "" FORCE)
+            set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+            set(ZSTD_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
+            set(ZSTD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+            set(ZSTD_ZLIB_SUPPORT OFF CACHE BOOL "" FORCE)
+            set(ZSTD_LZMA_SUPPORT OFF CACHE BOOL "" FORCE)
+            set(ZSTD_LZ4_SUPPORT OFF CACHE BOOL "" FORCE)
+            FetchContent_MakeAvailable(zstd_static)
+
+            if (NOT TARGET zstd::libzstd_static)
+                if (TARGET libzstd_static)
+                    add_library(zstd::libzstd_static ALIAS libzstd_static)
+                endif()
+            endif()
+        endif()
+
+        # Build latest libcurl and mbedTLS from source for a consistent static binary
+        message(STATUS "Building latest static libcurl and mbedTLS...")
+
+        # mbedTLS for SSL support (v4.1.0)
+        FetchContent_Declare(
+            mbedtls_latest
+            URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-4.1.0/mbedtls-4.1.0.tar.bz2
+            EXCLUDE_FROM_ALL
+        )
+        set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+        set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
+        set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
+
+        # curl (v8.19.0)
+        FetchContent_Declare(
+            curl_latest
+            URL https://github.com/curl/curl/releases/download/curl-8_19_0/curl-8.19.0.tar.gz
+            EXCLUDE_FROM_ALL
+        )
+        set(HTTP_ONLY ON CACHE BOOL "" FORCE)
+        set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+        set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+        set(CURL_USE_MBEDTLS ON CACHE BOOL "" FORCE)
+        set(CURL_USE_LIBPSL OFF CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_LDAP ON CACHE BOOL "" FORCE)
+        set(CURL_USE_LIBSSH2 OFF CACHE BOOL "" FORCE)
+        set(CURL_USE_LIBIDN2 OFF CACHE BOOL "" FORCE)
+        set(CURL_BROTLI OFF CACHE BOOL "" FORCE)
+        set(CURL_ZSTD OFF CACHE BOOL "" FORCE)
+        set(CURL_USE_NGHTTP2 OFF CACHE BOOL "" FORCE)
+        set(CURL_USE_GSASL OFF CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_GOPHER ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_MQTT ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_SMB ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_TELNET ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_DICT ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_FILE ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_TFTP ON CACHE BOOL "" FORCE)
+        set(CURL_INSTALL OFF CACHE BOOL "" FORCE)
+        set(INSTALL_MBEDTLS OFF CACHE BOOL "" FORCE)
+
+        # Aggressively disable everything that might pull in extra deps
+        set(CURL_DISABLE_HTTP2 ON CACHE BOOL "" FORCE)
+        set(USE_NGHTTP2 OFF CACHE BOOL "" FORCE)
+        set(CURL_USE_LIBIDN2 OFF CACHE BOOL "" FORCE)
+        set(USE_LIBIDN2 OFF CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_NTLM ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_PROXY ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_ALTSVC ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_COOKIES ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_HSTS ON CACHE BOOL "" FORCE)
+        set(CURL_DISABLE_VERBOSE_STRINGS ON CACHE BOOL "" FORCE)
+
+        FetchContent_MakeAvailable(mbedtls_latest curl_latest)
+
+        # Force libcurl to only use our internal static libraries
+        if (TARGET libcurl)
+            get_target_property(REAL_CURL libcurl ALIASED_TARGET)
+            if (NOT REAL_CURL)
+                set(REAL_CURL libcurl)
+            endif()
+
+            # Use paths instead of targets to bypass export set issues
+            set_target_properties(${REAL_CURL} PROPERTIES INTERFACE_LINK_LIBRARIES "")
+            target_link_libraries(${REAL_CURL} INTERFACE
+                "${mbedtls_latest_BINARY_DIR}/library/libmbedtls.a"
+                "${mbedtls_latest_BINARY_DIR}/library/libmbedx509.a"
+                "${mbedtls_latest_BINARY_DIR}/tf-psa-crypto/core/libtfpsacrypto.a"
+                "${zlib_static_BINARY_DIR}/libz.a"
+            )
+            message(STATUS "DEBUG: Cleaned ${REAL_CURL} link interface using paths")
+        endif()
+    endif()
 endif()
 
 set(C3_OPTIONS
@@ -777,6 +926,16 @@ if (C3_WITH_LLVM AND DEFINED sanitizer_runtime_libraries)
     endif()
 
     install(DIRECTORY $<TARGET_FILE_DIR:c3c>/c3c_rt/ DESTINATION bin/c3c_rt)
+endif()
+
+# Success message for static builds (clarifies glibc warnings)
+if (NOT C3_LINK_DYNAMIC AND UNIX AND NOT APPLE)
+    add_custom_command(TARGET c3c POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "-----------------------------------------------------------------"
+        COMMAND ${CMAKE_COMMAND} -E echo "SUCCESS: Static C3 binary created at $<TARGET_FILE:c3c>"
+        COMMAND ${CMAKE_COMMAND} -E echo "NOTE: The 'glibc' warnings above are normal for static binaries."
+        COMMAND ${CMAKE_COMMAND} -E echo "-----------------------------------------------------------------"
+        VERBATIM)
 endif()
 
 feature_summary(WHAT ALL)

@@ -235,7 +235,15 @@ if (NOT C3_LINK_DYNAMIC)
         set(CURL_DISABLE_HSTS ON CACHE BOOL "" FORCE)
         set(CURL_DISABLE_VERBOSE_STRINGS ON CACHE BOOL "" FORCE)
 
-        FetchContent_MakeAvailable(mbedtls_latest curl_latest)
+        FetchContent_MakeAvailable(mbedtls_latest)
+
+        # Provide paths so curl's FindMbedTLS.cmake succeeds without searching
+        set(MBEDTLS_INCLUDE_DIR "${mbedtls_latest_SOURCE_DIR}/include" CACHE PATH "MbedTLS include directory" FORCE)
+        set(MBEDTLS_LIBRARY "${mbedtls_latest_BINARY_DIR}/library/libmbedtls.a" CACHE FILEPATH "MbedTLS library" FORCE)
+        set(MBEDX509_LIBRARY "${mbedtls_latest_BINARY_DIR}/library/libmbedx509.a" CACHE FILEPATH "MbedTLS X509 library" FORCE)
+        set(MBEDCRYPTO_LIBRARY "${mbedtls_latest_BINARY_DIR}/tf-psa-crypto/core/libtfpsacrypto.a" CACHE FILEPATH "MbedTLS Crypto library" FORCE)
+
+        FetchContent_MakeAvailable(curl_latest)
 
         # Force libcurl to only use our internal static libraries
         if (TARGET libcurl)

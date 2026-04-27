@@ -256,12 +256,17 @@ if (NOT C3_LINK_DYNAMIC)
 
             # Use paths instead of targets to bypass export set issues
             set_target_properties(${REAL_CURL} PROPERTIES INTERFACE_LINK_LIBRARIES "")
-            target_link_libraries(${REAL_CURL} INTERFACE
+            set(_curl_deps
                 "${mbedtls_latest_BINARY_DIR}/library/libmbedtls.a"
                 "${mbedtls_latest_BINARY_DIR}/library/libmbedx509.a"
                 "${mbedtls_latest_BINARY_DIR}/tf-psa-crypto/core/libtfpsacrypto.a"
-                "${zlib_static_BINARY_DIR}/libz.a"
             )
+            if (zlib_static_BINARY_DIR)
+                list(APPEND _curl_deps "${zlib_static_BINARY_DIR}/libz.a")
+            else()
+                list(APPEND _curl_deps ZLIB::ZLIB)
+            endif()
+            target_link_libraries(${REAL_CURL} INTERFACE ${_curl_deps})
             message(STATUS "DEBUG: Cleaned ${REAL_CURL} link interface using paths")
         endif()
     endif()

@@ -1202,7 +1202,146 @@
 		.filter-chip.active:hover {
 			background: rgba(37, 99, 235, 0.25);
 		}
-</style>
+
+		.constellation-overlay {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100vw;
+			height: 100vh;
+			background: radial-gradient(circle at center, #0b0e14 0%, #050608 100%);
+			z-index: 10000;
+			display: none;
+			opacity: 0;
+			transition: opacity 0.5s ease;
+			overflow: hidden;
+			cursor: grab;
+		}
+
+		.constellation-overlay.show {
+			display: block;
+			opacity: 1;
+		}
+
+		.constellation-overlay:active {
+			cursor: grabbing;
+		}
+
+		.constellation-open {
+			position: fixed;
+			top: 30px;
+			right: 30px;
+			width: 44px;
+			height: 44px;
+			background: rgba(255, 255, 255, 0.05);
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			border-radius: 50%;
+			color: #fff;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+			z-index: 9999;
+			transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+			backdrop-filter: blur(10px);
+			-webkit-backdrop-filter: blur(10px);
+		}
+
+		.constellation-open:hover {
+			background: rgba(255, 255, 255, 0.15);
+			transform: scale(1.1) rotate(15deg);
+			border-color: rgba(255, 255, 255, 0.3);
+			box-shadow: 0 0 20px rgba(96, 165, 250, 0.3);
+		}
+
+		.constellation-close {
+			position: absolute;
+			top: 30px;
+			right: 30px;
+			width: 44px;
+			height: 44px;
+			background: rgba(255, 255, 255, 0.05);
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			border-radius: 50%;
+			color: #fff;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+			font-size: 20px;
+			z-index: 10001;
+			transition: all 0.3s ease;
+			backdrop-filter: blur(10px);
+		}
+
+		.constellation-close:hover {
+			background: rgba(255, 255, 255, 0.15);
+			transform: rotate(90deg);
+		}
+
+		.constellation-hint {
+			position: absolute;
+			bottom: 30px;
+			left: 50%;
+			transform: translateX(-50%);
+			color: rgba(255, 255, 255, 0.4);
+			font-family: var(--font-mono);
+			font-size: 12px;
+			pointer-events: none;
+			letter-spacing: 2px;
+			text-transform: uppercase;
+		}
+
+		.constellation-info {
+			position: absolute;
+			top: 30px;
+			left: 30px;
+			background: rgba(0, 0, 0, 0.4);
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			border-radius: 12px;
+			padding: 20px;
+			color: #fff;
+			font-family: var(--font-mono);
+			backdrop-filter: blur(20px);
+			-webkit-backdrop-filter: blur(20px);
+			pointer-events: none;
+			opacity: 0;
+			transform: translateX(-20px);
+			transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+			z-index: 10001;
+			min-width: 240px;
+			box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+		}
+
+		.constellation-info.show {
+			opacity: 1;
+			transform: translateX(0);
+		}
+
+		.constellation-info-type {
+			font-size: 9px;
+			text-transform: uppercase;
+			letter-spacing: 2px;
+			color: #60a5fa;
+			margin-bottom: 8px;
+			opacity: 0.8;
+		}
+
+		.constellation-info-name {
+			font-size: 20px;
+			font-weight: 700;
+			background: linear-gradient(to right, #fff, #94a3b8);
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			margin-bottom: 4px;
+		}
+
+		.constellation-info-uid {
+			font-size: 11px;
+			color: rgba(255, 255, 255, 0.4);
+			word-break: break-all;
+		}
+	</style>
 </head>
 
 <body>
@@ -1242,6 +1381,25 @@
 		<div id="ctx-indicator-top" class="scroll-indicator scroll-indicator-top"></div>
 		<div id="right-sidebar-content" class="right-sidebar-content"></div>
 		<div id="ctx-indicator-bottom" class="scroll-indicator scroll-indicator-bottom"></div>
+	</div>
+
+	<div id="constellation-open" class="constellation-open" onclick="toggleConstellation()"
+		title="Open Project Constellation">
+		<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+			<circle cx="12" cy="12" r="3"></circle>
+			<circle cx="5" cy="12" r="1" fill="currentColor"></circle>
+			<circle cx="12" cy="5" r="1" fill="currentColor"></circle>
+			<circle cx="12" cy="19" r="1" fill="currentColor"></circle>
+			<circle cx="19" cy="12" r="1" fill="currentColor"></circle>
+			<path d="M12 2v3M12 19v3M2 12h3M19 12h3" opacity="0.5"></path>
+		</svg>
+	</div>
+
+	<div id="constellation-view" class="constellation-overlay">
+		<div class="constellation-close" onclick="toggleConstellation()">✕</div>
+		<canvas id="constellation-canvas"></canvas>
+		<div id="constellation-info" class="constellation-info"></div>
+		<div class="constellation-hint">Drag to rotate • Click a star to navigate • Press ESC to exit</div>
 	</div>
 
 	<script>
@@ -1490,6 +1648,354 @@
 			});
 		}
 
+		let constellationActive = false;
+		let constellationReq = null;
+		const starSpriteCache = new Map();
+		let constellationData = {
+			nodes: [],
+			camX: 0, camY: 0, camZ: 3000,
+			targetCamZ: 3000,
+			offsetX: 0, offsetY: 0, offsetZ: 0,
+			targetOffsetX: 0, targetOffsetY: 0, targetOffsetZ: 0,
+			rotX: 0, rotY: 0,
+			lastHoveredNode: null,
+			targetRotX: 0.2, targetRotY: 0.5,
+			isDragging: false,
+			lastMouseX: 0, lastMouseY: 0,
+			keysDown: new Set()
+		};
+
+		function getStarSprite(color) {
+			if (starSpriteCache.has(color)) return starSpriteCache.get(color);
+			const canvas = document.createElement('canvas');
+			canvas.width = 64;
+			canvas.height = 64;
+			const ctx = canvas.getContext('2d');
+			const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+			grad.addColorStop(0, color);
+			grad.addColorStop(0.1, color);
+			grad.addColorStop(1, 'transparent');
+			ctx.fillStyle = grad;
+			ctx.fillRect(0, 0, 64, 64);
+			starSpriteCache.set(color, canvas);
+			return canvas;
+		}
+
+		function toggleConstellation() {
+			const view = document.getElementById('constellation-view');
+			constellationActive = !constellationActive;
+			view.classList.toggle('show', constellationActive);
+			if (constellationActive) startConstellation();
+			else stopConstellation();
+		}
+
+		function startConstellation() {
+			const canvas = document.getElementById('constellation-canvas');
+			const ctx = canvas.getContext('2d');
+			const infoBox = document.getElementById('constellation-info');
+
+			// Build data hierarchy
+			const nodes = [];
+			const modules = allDecls.filter(d => d.kind === 'module');
+
+			// Central project node
+			nodes.push({ id: 'root', name: 'Project Core', uid: '', x: 0, y: 0, z: 0, size: 24, color: '#60a5fa', opacity: 1, type: 'core' });
+
+			modules.forEach((mod, idx) => {
+				const members = allDecls.filter(d => d.moduleName === mod.uid);
+				const memberCount = members.length;
+
+				const angle = (idx / modules.length) * Math.PI * 2;
+				// Balanced hub distance
+				const dist = 500 + Math.sqrt(memberCount) * 80 + Math.random() * 250;
+				const mx = Math.cos(angle) * dist;
+				const mz = Math.sin(angle) * dist;
+				const my = (Math.random() - 0.5) * 1200; // Balanced vertical spread
+
+				const modNode = {
+					id: mod.uid, name: mod.name, uid: mod.uid,
+					x: mx, y: my, z: mz,
+					size: 3 + Math.sqrt(memberCount) * 1.2, // Smaller hub size
+					color: getSubtleColor(mod.name), opacity: 0.8,
+					parentId: 'root', type: 'module'
+				};
+				nodes.push(modNode);
+
+				// Add important members as orbiting stars
+				const importantKinds = ['function', 'method', 'macro', 'macro_method', 'struct', 'enum', 'interface'];
+				const importantMembers = members.filter(m => importantKinds.includes(m.kind));
+				const displayMembers = importantMembers.slice(0, 32); // Show more members
+
+				displayMembers.forEach((mem, midx) => {
+					const sAngle = (midx / displayMembers.length) * Math.PI * 2;
+					const sDist = 60 + modNode.size * 1.5 + Math.random() * 30; // Half distance
+					nodes.push({
+						id: mem.uid, name: mem.name, uid: mem.uid,
+						x: mx + Math.cos(sAngle) * sDist,
+						y: my + (Math.random() - 0.5) * 120,
+						z: mz + Math.sin(sAngle) * sDist,
+						size: 4.5, // Larger function/macro nodes
+						color: getKindColor(mem.kind),
+						opacity: 0.7,
+						parentId: mod.uid,
+						type: mem.kind
+					});
+				});
+			});
+
+			const constellationNodes = nodes;
+			constellationData.nodes = nodes;
+
+			function recenterUniverse(uid) {
+				if (uid === undefined) return;
+				const target = constellationData.nodes.find(n => n.uid === uid);
+				if (target) {
+					constellationData.targetOffsetX = target.x;
+					constellationData.targetOffsetY = target.y;
+					constellationData.targetOffsetZ = target.z;
+					constellationData.targetCamZ = Math.min(constellationData.targetCamZ, 600); // Zoom in if too far
+				}
+			}
+			constellationData.recenter = recenterUniverse;
+
+			const currentUid = decodeURIComponent(location.hash.slice(1));
+			const initialTarget = constellationData.nodes.find(n => n.uid === currentUid);
+			if (initialTarget) {
+				constellationData.offsetX = constellationData.targetOffsetX = initialTarget.x;
+				constellationData.offsetY = constellationData.targetOffsetY = initialTarget.y;
+				constellationData.offsetZ = constellationData.targetOffsetZ = initialTarget.z;
+				constellationData.camZ = constellationData.targetCamZ = 600;
+			} else if (!currentUid) {
+				constellationData.camZ = 3000;
+				constellationData.targetCamZ = 3000;
+			}
+
+			const resize = () => {
+				canvas.width = window.innerWidth;
+				canvas.height = window.innerHeight;
+			};
+			window.addEventListener('resize', resize);
+			resize();
+
+			const handleDown = (e) => {
+				constellationData.isDragging = true;
+				constellationData.lastMouseX = e.clientX || e.touches[0].clientX;
+				constellationData.lastMouseY = e.clientY || e.touches[0].clientY;
+			};
+			const handleMove = (e) => {
+				const x = e.clientX || e.touches?.[0]?.clientX;
+				const y = e.clientY || e.touches?.[0]?.clientY;
+				if (x === undefined) return;
+
+				if (constellationData.isDragging) {
+					constellationData.targetRotY += (x - constellationData.lastMouseX) * 0.005;
+					constellationData.targetRotX += (y - constellationData.lastMouseY) * 0.005;
+				} else {
+					// Hover detection
+					const rect = canvas.getBoundingClientRect();
+					const mx = x - rect.left;
+					const my = y - rect.top;
+
+					const hovered = constellationData.nodes.find(n => {
+						if (!n.screen || n.behind) return false;
+						const dx = n.screen.x - mx;
+						const dy = n.screen.y - my;
+						return Math.sqrt(dx * dx + dy * dy) < (n.size * 2 + 10);
+					});
+
+					constellationData.hoveredNode = hovered;
+					canvas.style.cursor = hovered ? 'pointer' : 'grab';
+				}
+
+				constellationData.lastMouseX = x;
+				constellationData.lastMouseY = y;
+			};
+			const handleUp = () => { constellationData.isDragging = false; };
+			const handleWheel = (e) => {
+				e.preventDefault();
+				const zoomSpeed = Math.abs(constellationData.targetCamZ) * 0.001 + 0.1;
+				constellationData.targetCamZ = Math.max(-650, Math.min(10000, constellationData.targetCamZ + e.deltaY * zoomSpeed * 2.5));
+			};
+			const handleClick = (e) => {
+				if (constellationData.isDragging) return;
+				if (constellationData.hoveredNode && constellationData.hoveredNode.uid !== undefined) {
+					navigateTo(constellationData.hoveredNode.uid);
+					constellationData.recenter(constellationData.hoveredNode.uid);
+				}
+			};
+
+			canvas.addEventListener('mousedown', handleDown);
+			window.addEventListener('mousemove', handleMove);
+			window.addEventListener('mouseup', handleUp);
+			canvas.addEventListener('wheel', handleWheel, { passive: false });
+			canvas.addEventListener('click', handleClick);
+
+			// Animation loop
+			const loop = () => {
+				if (!constellationActive) return;
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+				// Smooth motion
+				constellationData.camZ += (constellationData.targetCamZ - constellationData.camZ) * 0.1;
+				constellationData.offsetX += (constellationData.targetOffsetX - constellationData.offsetX) * 0.08;
+				constellationData.offsetY += (constellationData.targetOffsetY - constellationData.offsetY) * 0.08;
+				constellationData.offsetZ += (constellationData.targetOffsetZ - constellationData.offsetZ) * 0.08;
+
+				// Update info box - only on change
+				if (constellationData.lastHoveredNode !== constellationData.hoveredNode) {
+					constellationData.lastHoveredNode = constellationData.hoveredNode;
+					if (constellationData.hoveredNode) {
+						const n = constellationData.hoveredNode;
+						const typeLabel = n.type === 'core' ? 'System' : (n.type.charAt(0).toUpperCase() + n.type.slice(1).replace('_', ' '));
+						infoBox.innerHTML = `
+							<div class="constellation-info-type">${typeLabel}</div>
+							<div class="constellation-info-name">${n.name}</div>
+							${n.uid ? `<div class="constellation-info-uid">${n.uid}</div>` : ''}
+						`;
+						infoBox.classList.add('show');
+					} else {
+						infoBox.classList.remove('show');
+					}
+				}
+
+				// Handle smooth keyboard movement
+				const zoomStep = Math.abs(constellationData.targetCamZ) * 0.03 + 15;
+				const rotStep = 0.1;
+
+				if (constellationData.keysDown.has('w')) constellationData.targetCamZ = Math.max(-650, constellationData.targetCamZ - zoomStep);
+				if (constellationData.keysDown.has('s')) constellationData.targetCamZ = Math.min(10000, constellationData.targetCamZ + zoomStep);
+				if (constellationData.keysDown.has('a')) constellationData.targetRotY -= rotStep;
+				if (constellationData.keysDown.has('d')) constellationData.targetRotY += rotStep;
+
+				// Smooth rotation
+				constellationData.rotX += (constellationData.targetRotX - constellationData.rotX) * 0.1;
+				constellationData.rotY += (constellationData.targetRotY - constellationData.rotY) * 0.1;
+
+				const cosX = Math.cos(constellationData.rotX);
+				const sinX = Math.sin(constellationData.rotX);
+				const cosY = Math.cos(constellationData.rotY);
+				const sinY = Math.sin(constellationData.rotY);
+
+				const centerX = canvas.width / 2;
+				const centerY = canvas.height / 2;
+
+				// Project Nodes
+				constellationData.nodes.forEach(n => {
+					const nx = n.x - constellationData.offsetX;
+					const ny = n.y - constellationData.offsetY;
+					const nz = n.z - constellationData.offsetZ;
+
+					let x = nx * cosY - nz * sinY;
+					let z = nx * sinY + nz * cosY;
+					let y = ny * cosX - z * sinX;
+					z = ny * sinX + z * cosX;
+
+					const fov = 800;
+					const dist = fov + z + constellationData.camZ;
+					n.behind = dist < 10;
+
+					if (n.behind) {
+						n.screen = null;
+						return;
+					}
+
+					const scale = fov / dist;
+					n.screen = {
+						x: centerX + x * scale,
+						y: centerY + y * scale,
+						scale: scale,
+						z: z
+					};
+				});
+
+				// Nodes
+				const sortedNodes = [...constellationData.nodes].filter(n => !n.behind).sort((a, b) => b.screen.z - a.screen.z);
+				const selectedUid = decodeURIComponent(location.hash.slice(1));
+
+				// Connections
+				ctx.lineWidth = 0.5;
+				constellationData.nodes.forEach(n => {
+					if (n.parentId && n.parentId !== 'root' && !n.behind) {
+						const parent = constellationData.nodes.find(p => p.id === n.parentId);
+						if (parent && !parent.behind) {
+							ctx.globalAlpha = 0.08 * n.screen.scale; // Lower alpha, no dash for performance
+							ctx.strokeStyle = n.color || '#3b82f6';
+							ctx.beginPath();
+							ctx.moveTo(n.screen.x, n.screen.y);
+							ctx.lineTo(parent.screen.x, parent.screen.y);
+							ctx.stroke();
+						}
+					}
+				});
+
+				sortedNodes.forEach(n => {
+					const s = n.size * n.screen.scale;
+					if (s < 0.1) return;
+
+					const isHovered = constellationData.hoveredNode === n;
+					const isSelected = n.uid !== undefined && n.uid === selectedUid;
+					const active = isHovered || isSelected;
+
+					// Glow Sprite
+					const sprite = getStarSprite(active ? '#fff' : n.color);
+					// Dynamic glow: larger/brighter when far away (low scale)
+					const distFactor = 1 - Math.min(1, n.screen.scale);
+					const glowSize = s * (active ? 8 : (2.5 + distFactor * 6));
+					ctx.globalAlpha = (active ? 0.8 : (0.2 + distFactor * 0.4)) * n.opacity * Math.min(1, n.screen.scale);
+					ctx.drawImage(sprite, n.screen.x - glowSize, n.screen.y - glowSize, glowSize * 2, glowSize * 2);
+
+					// Core
+					ctx.globalAlpha = active ? 1 : n.opacity * 0.7;
+					ctx.fillStyle = active ? '#fff' : n.color;
+					ctx.beginPath();
+					ctx.arc(n.screen.x, n.screen.y, s, 0, Math.PI * 2);
+					ctx.fill();
+
+					// Label prioritization
+					const distToTarget = Math.sqrt(
+						Math.pow(n.x - constellationData.targetOffsetX, 2) +
+						Math.pow(n.y - constellationData.targetOffsetY, 2) +
+						Math.pow(n.z - constellationData.targetOffsetZ, 2)
+					);
+
+					let labelImportance = active ? 100 : 0;
+					if (!active) {
+						if (n.type === 'module' || n.type === 'core') labelImportance = n.screen.scale * 30;
+						else if (distToTarget < 600) labelImportance = n.screen.scale * 15;
+						else labelImportance = n.screen.scale * 5;
+					}
+
+					if (labelImportance > 15) {
+						ctx.globalAlpha = 1;
+						const baseSize = active ? 32 : 20;
+						ctx.fillStyle = active ? '#fff' : 'rgba(255,255,255,0.85)';
+						const scaledSize = Math.max(16, Math.round(baseSize * (0.4 + n.screen.scale * 0.6)));
+						ctx.font = `bold ${scaledSize}px var(--font-mono)`;
+						ctx.textAlign = 'center';
+
+						if (active) {
+							ctx.shadowBlur = 20;
+							ctx.shadowColor = '#3b82f6';
+						}
+
+						const offset = active ? 40 : 25;
+						ctx.fillText(n.name, n.screen.x, n.screen.y + s + offset);
+
+						if (active) {
+							ctx.shadowBlur = 0;
+						}
+					}
+				});
+
+				constellationReq = requestAnimationFrame(loop);
+			};
+			constellationReq = requestAnimationFrame(loop);
+		}
+
+		function stopConstellation() {
+			if (constellationReq) cancelAnimationFrame(constellationReq);
+		}
+
 		function addOrMergeDeclaration(decl) {
 			const cleanDecl = { ...decl };
 			delete cleanDecl.targetName;
@@ -1526,13 +2032,28 @@
 			}
 		}
 
+		function getKindColor(kind) {
+			switch (kind) {
+				case 'function': return '#60a5fa';
+				case 'method': return '#a78bfa';
+				case 'macro': return '#f472b6';
+				case 'macro_method': return '#fb7185';
+				case 'struct': return '#34d399';
+				case 'enum': return '#fbbf24';
+				case 'interface': return '#2dd4bf';
+				case 'module': return '#94a3b8';
+				default: return '#fff';
+			}
+		}
+
 		function getSubtleColor(text) {
 			let hash = 0;
 			for (let i = 0; i < text.length; i++) {
 				hash = text.charCodeAt(i) + ((hash << 5) - hash);
 			}
 			const h = Math.abs(hash) % 360;
-			return `hsl(${h}, 40%, var(--subtle-l, 70%))`;
+			const subtleL = getComputedStyle(document.documentElement).getPropertyValue('--subtle-l').trim() || '70%';
+			return `hsl(${h}, 40%, ${subtleL})`;
 		}
 
 		function formatHierarchicalName(name, sep, opacityParent = 0.8, colorLast = 'var(--hl-module)') {
@@ -2052,17 +2573,17 @@
 				}
 
 				const KIND_MAP = {
-					'mod':      ['module'],
-					'module':   ['module'],
-					'fn':       ['function', 'method'],
-					'func':     ['function', 'method'],
+					'mod': ['module'],
+					'module': ['module'],
+					'fn': ['function', 'method'],
+					'func': ['function', 'method'],
 					'function': ['function', 'method'],
-					'macro':    ['macro', 'macro_method'],
-					'struct':   ['struct'],
-					'enum':     ['enum'],
-					'union':    ['union'],
-					'var':      ['variable', 'const', 'constdef'],
-					'const':    ['variable', 'const', 'constdef']
+					'macro': ['macro', 'macro_method'],
+					'struct': ['struct'],
+					'enum': ['enum'],
+					'union': ['union'],
+					'var': ['variable', 'const', 'constdef'],
+					'const': ['variable', 'const', 'constdef']
 				};
 
 				const filtered = allDecls
@@ -2135,6 +2656,16 @@
 					}
 					const clamped = Math.min(next, currentRendered.length - 1);
 					if (clamped >= 0) { highlightItem(clamped); renderDetails(currentRendered[clamped]); }
+				} else if (constellationActive) {
+					constellationData.keysDown.add(e.key.toLowerCase());
+
+					if (e.key === 'Escape') {
+						e.preventDefault();
+						toggleConstellation();
+					} else if (['w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
+						e.preventDefault();
+					}
+					return;
 				} else if ((e.key === 'ArrowUp' || e.key === 'PageUp') && isSearching) {
 					e.preventDefault();
 					const step = e.key === 'PageUp' ? 10 : 1;
@@ -2154,6 +2685,12 @@
 					if (document.activeElement !== input) {
 						input.focus();
 					}
+				}
+			});
+
+			document.addEventListener('keyup', (e) => {
+				if (constellationActive) {
+					constellationData.keysDown.delete(e.key.toLowerCase());
 				}
 			});
 

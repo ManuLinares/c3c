@@ -189,40 +189,24 @@ jobs:
 
   build-linux-musl-static:
     runs-on: ubuntu-latest
-    container:
-      image: alpine:3.23
     strategy:
       fail-fast: false
       matrix:
         build_type: [Release, Debug]
     steps:
-      - name: Prepare Git
-        run: |
-          apk add --no-cache git
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
-          V=${{env.LLVM_RELEASE_VERSION_LINUX_MUSL}}
-          apk update
-          apk add \
-            build-base bash cmake ninja python3 linux-headers \
-            zlib-dev zlib-static zstd-dev zstd-static curl-dev curl-static \
-            openssl-libs-static brotli-static nghttp2-static libpsl-static \
-            libidn2-static libunistring-static nghttp3-static c-ares-dev \
-            curl-dev openssl-dev brotli-dev libpsl-dev libidn2-dev \
-            libunistring-dev nghttp2-dev nghttp3-dev c-ares-dev
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libxcursor-dev
 
-      - name: CMake Build (static musl)
+      - name: CMake Build (static linux)
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DC3_FETCH_LLVM=ON \
-            -DC3_LINK_DYNAMIC=OFF \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DCMAKE_EXE_LINKER_FLAGS="-static -static-libstdc++ -static-libgcc"
+            -DC3_LINK_DYNAMIC=OFF
           cmake --build build
 
       - name: Verify Static

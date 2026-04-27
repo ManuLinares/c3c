@@ -239,6 +239,8 @@ if (NOT C3_LINK_DYNAMIC)
 
         # Provide paths so curl's FindMbedTLS.cmake succeeds without searching
         set(MBEDTLS_INCLUDE_DIR "${mbedtls_latest_SOURCE_DIR}/include" CACHE PATH "MbedTLS include directory" FORCE)
+        include_directories("${mbedtls_latest_SOURCE_DIR}/tf-psa-crypto/include")
+        include_directories("${mbedtls_latest_SOURCE_DIR}/tf-psa-crypto/drivers/builtin/include")
         set(MBEDTLS_LIBRARY "${mbedtls_latest_BINARY_DIR}/library/libmbedtls.a" CACHE FILEPATH "MbedTLS library" FORCE)
         set(MBEDX509_LIBRARY "${mbedtls_latest_BINARY_DIR}/library/libmbedx509.a" CACHE FILEPATH "MbedTLS X509 library" FORCE)
         set(MBEDCRYPTO_LIBRARY "${mbedtls_latest_BINARY_DIR}/tf-psa-crypto/core/libtfpsacrypto.a" CACHE FILEPATH "MbedTLS Crypto library" FORCE)
@@ -785,7 +787,11 @@ endif()
 
 # libcurl support
 if (NOT WIN32)
-    if (CMAKE_EXE_LINKER_FLAGS MATCHES "-static")
+    if (TARGET libcurl)
+        target_link_libraries(c3c PRIVATE libcurl)
+        target_compile_definitions(c3c PRIVATE C3_LINK_CURL)
+        message(STATUS "Linking against locally fetched static libcurl")
+    elseif (CMAKE_EXE_LINKER_FLAGS MATCHES "-static")
         # Static: need pkg-config to resolve all transitive deps
         find_package(PkgConfig QUIET)
         if (PKG_CONFIG_FOUND)

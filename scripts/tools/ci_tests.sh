@@ -37,27 +37,10 @@ fi
 echo ">>> Running CI Tests using C3C at: $C3C_BIN"
 echo ">>> OS Mode: $OS_MODE (Detected System: $SYSTEM_NAME)"
 
-# --- Create Disposable Workspace ---
+# ROOT_DIR points to the source tree.
+ROOT_DIR="$REAL_ROOT_DIR"
 
-# Create temp directory
-WORK_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t 'c3_ci_tests')
-echo ">>> Setting up workspace in: $WORK_DIR"
-
-cleanup() {
-    echo ">>> Cleaning up..."
-    cd "$REAL_ROOT_DIR" || cd ..
-    rm -rf "$WORK_DIR"
-}
-trap cleanup EXIT
-
-# Copy necessary test data to the temp directory
-cp -r "$REAL_ROOT_DIR/resources" "$WORK_DIR/resources"
-cp -r "$REAL_ROOT_DIR/test"      "$WORK_DIR/test"
-
-# ROOT_DIR points to the temp workspace.
-ROOT_DIR="$WORK_DIR"
-
-# Move to the temp resources dir to match original script behavior
+# Move to the resources dir to match original script behavior
 cd "$ROOT_DIR/resources"
 
 # --- Tests ---

@@ -88,6 +88,21 @@ const int REG_NEWLINE   = 8;
 const int REG_NOTBOL    = 1;
 const int REG_NOTEOL    = 2;
 
+faultdef
+	NOMATCH,
+	BADPAT,
+	ECOLLATE,
+	ECTYPE,
+	EESCAPE,
+	ESUBREG,
+	EBRACK,
+	EPAREN,
+	EBRACE,
+	BADBR,
+	ERANGE,
+	OUT_OF_MEMORY,
+	BADRPT;
+
 // Error codes
 const int REG_OK        = 0;
 const int REG_NOMATCH   = 1;
@@ -147,20 +162,6 @@ struct Regex
 	Tnfa* __tnfa;
 }
 
-faultdef
-	NOMATCH,
-	BADPAT,
-	ECOLLATE,
-	ECTYPE,
-	EESCAPE,
-	ESUBREG,
-	EBRACK,
-	EPAREN,
-	EBRACE,
-	BADBR,
-	ERANGE,
-	OUT_OF_MEMORY,
-	BADRPT;
 
 // ============================================================
 //  Internal: AST node types
@@ -1810,7 +1811,7 @@ fn int tre_compute_nfl(Allocator arena, Stack* stack, AstNode* tree) @local
 					case LITERAL:
 					{
 						Literal* lit = node.obj;
-						if (lit.code_min == (long)BACKREF)
+						if (lit.code_min == BACKREF)
 						{
 							node.nullable = 0;
 							node.firstpos = tre_set_one(arena, lit.position, 0, CHAR_MAX_CODEPOINT, 0, null, -1);

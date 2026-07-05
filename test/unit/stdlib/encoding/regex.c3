@@ -7,11 +7,11 @@ fn void test_idiomatic_api() @test
 	// --- compile: invalid pattern throws a typed fault ---------------------
 	if (catch err = regex::compile("(unclosed", regex::REG_EXTENDED))
 	{
-		assert(err == regex::EPAREN, "expected EPAREN for unclosed group");
+		test::eq(err, regex::EPAREN);
 	}
 	else
 	{
-		unreachable("compile should have failed");
+		unreachable("compile should have failed with fault regex::EPAREN");
 	}
 
 	// compile: simple literal 
@@ -22,13 +22,14 @@ fn void test_idiomatic_api() @test
 	String input1 = "say hello world";
 	Match[] m = re.exec(input1)!!;
 	// Since Match implements Printable, we can print it directly:
-	// io::print(m[0]);  // prints: hello
-	assert(m[0] == "hello", "expected matched text 'hello'");
+	io::print(m[0]);  // prints: hello
+
+	test::eq(string::tformat("%s", m[0]), "hello");
 
 	// exec: no match returns NOMATCH fault
 	if (catch err = re.exec("goodbye"))
 	{
-		assert(err == regex::NOMATCH, "expected NOMATCH");
+		test::eq(err, regex::NOMATCH);
 	}
 	else
 	{
@@ -45,8 +46,9 @@ fn void test_idiomatic_api() @test
 	// io::print(em[0]);  // prints: user@example.com
 	// io::print(em[1]);  // prints: user
 	// io::print(em[2]);  // prints: example.com
-	assert(em[1] == "user",        "user capture mismatch");
-	assert(em[2] == "example.com", "domain capture mismatch");
+	test::eq(em[0], "user@example.com");
+	test::eq(em[1], "user");
+	test::eq(em[2], "example.com");
 }
 
 // ============================================================

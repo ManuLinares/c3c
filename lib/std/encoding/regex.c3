@@ -135,24 +135,18 @@ struct Match (Printable)
 	// RegOff rm_eo;
 }
 
-fn sz? Match.to_format(&self, Formatter* formatter) @dynamic
-{
-	return formatter.print(self.str());
-}
+fn sz? Match.to_format(&self, Formatter* formatter) @dynamic => formatter.print(self.str());
+// TODO: do I need to implement .to_constant_string() ???
 
-<*
- Extract the matched substring as a String. could be .str_view() .to_str(), i don't know
-*>
+<* Extract the matched substring as a String. could be .str_view() .to_str(), i don't know TODO *>
 fn String Match.str(&self) @inline
 {
 	if (self.match.rm_so < 0 || self.match.rm_eo < 0) return "";
 	return self.input[self.match.rm_so : (self.match.rm_eo - self.match.rm_so)];
 }
 
-fn bool Match.eq(&self, String other) @operator(==) @inline
-{
-	return self.str() == other;
-}
+fn bool Match.eq(&self, String other) @operator(==) @inline => self.str() == other;
+
 
 struct Regex
 {
@@ -335,7 +329,7 @@ struct Iteration @local
 	bool     minimal;
 }
 
-typedef Union = Catenation;
+typedef Union @local = Catenation;
 
 
 // ============================================================
@@ -3042,11 +3036,8 @@ fn int tre_tnfa_run_parallel(Tnfa* tnfa, String string, int* match_tags, int efl
 	StringIterator it;
 	it.utf8 = string;
 	it.reset();
+	next_c = (int)(it.next() ?? 0);
 
-	if (it.has_next())
-	{
-		next_c = (int)(it.peek() ?? 0);
-	}
 
 	TreTnfaReach* reach_next_i = reach_next;
 	while (true)
@@ -3098,16 +3089,9 @@ fn int tre_tnfa_run_parallel(Tnfa* tnfa, String string, int* match_tags, int efl
 
 		if (next_c == 0) break;
 
+		// Move window forward by decoding next character once
 		prev_c = next_c;
-		if (it.has_next())
-		{
-			(void)it.next();
-			next_c = (int)(it.peek() ?? 0);
-		}
-		else
-		{
-			next_c = 0;
-		}
+		next_c = (int)(it.next() ?? 0);
 
 		pos++;
 

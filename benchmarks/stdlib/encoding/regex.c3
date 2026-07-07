@@ -36,6 +36,9 @@ extern fn int regcomp(RegexT* preg, char* regex, int cflags);
 extern fn int regexec(RegexT* preg, char* string, usz nmatch, RegMatch* pmatch, int eflags);
 extern fn void regfree(RegexT* preg);
 
+const int REG_NOMATCH = 1;
+
+
 fn void bench_setup() @init
 {
 	set_benchmark_warmup_iterations(3);
@@ -117,14 +120,14 @@ fn void bench_setup() @init
 		assert(err == regex::NOMATCH);
 	}
 	int rx = regexec(&glibc_re_complex, input_small, 0, null, 0);
-	assert(rx == regex::REG_NOMATCH);
+	assert(rx == REG_NOMATCH);
 
 	if (catch err = re_unicode.exec(input_unicode))
 	{
 		assert(err == regex::NOMATCH);
 	}
 	rx = regexec(&glibc_re_unicode, input_unicode, 0, null, 0);
-	assert(rx == regex::REG_NOMATCH);
+	assert(rx == REG_NOMATCH);
 }
 
 fn String repeat_str(String s, sz count)

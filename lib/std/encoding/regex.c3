@@ -1,20 +1,32 @@
-<* POSIX Regex engine using a parallel TNFA matching scheme.
- port based on the musl libc .
+<* POSIX Regex engine based on musl libc (parallel TNFA scheme).
 
- usage:
+ **Usage:**
  ```
-   // Compile a pattern (returns Regex? on failure)
+   // Compile a pattern (returns Regex?)
    Regex re = regex::compile("(\\w+)@(\\w+)", EXTENDED)!!;
    defer re.free();
 
-   // Execute matching (returns Match[]? on failure)
-   if (try matches = re.exec("user@domain.com", 3)) {
-       io::printfn("Full match: %s", matches[0]);
-       io::printfn("Capture 1: %s", matches[1]);
+   // Execute matching & handle faults using error_string
+   Match[]? res = re.exec("user@domain.com", 3);
+   if (catch err = res) {
+       io::printfn("Error: %s", regex::error_string(err));
+       return;
    }
+   io::printfn("User: %s, Domain: %s", res[1], res[2]);
  ```
 
- faults: BADPAT, EPAREN, EBRACK, OUT_OF_MEMORY, NOMATCH
+**Supported:**
+  - POSIX Extended (ERE) and Basic (BRE) regular expressions.
+  - Exact submatch extraction (capture groups).
+  - Backreferences (\1 to \9 in BRE, which falls back to backtracking execution).
+  - Word boundaries (\b, \B, \<, \>) and word/space shorthands (\w, \W, \s, \S, \d, \D).
+  - Hexadecimal character escapes (\xHH and \x{HHHH}).
+  - Multi-byte UTF-8 character matching.
+
+**Not supported:**
+  - PCRE-specific features: Lookarounds (lookahead/lookbehind), atomic grouping, or possessive quantifiers.
+  - Named capture groups (ex, (?P<name>...)).
+  - POSIX collation elements [[.col.]], or equivalence classes [[=eq=]].
 
 *>
 module std::encoding::regex;

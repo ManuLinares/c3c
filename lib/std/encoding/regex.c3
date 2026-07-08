@@ -1,23 +1,56 @@
-// C3 port based on the musl libc regex implementation.
+<* POSIX Regex engine using a parallel TNFA matching scheme.
+ port based on the musl libc .
+
+ usage:
+ ```
+   // Compile a pattern (returns Regex? on failure)
+   Regex re = regex::compile("(\\w+)@(\\w+)", EXTENDED)!!;
+   defer re.free();
+
+   // Execute matching (returns Match[]? on failure)
+   if (try matches = re.exec("user@domain.com", 3)) {
+       io::printfn("Full match: %s", matches[0]);
+       io::printfn("Capture 1: %s", matches[1]);
+   }
+ ```
+
+ faults: BADPAT, EPAREN, EBRACK, OUT_OF_MEMORY, NOMATCH
+
+*>
 module std::encoding::regex;
 
 import std::io;
 
 // API
 
+struct Regex
+{
+	<* The number of subexpressions in regex *>
+	sz    re_nsub;
+	<* internal TNFA pointer *>
+	Tnfa* __tnfa;
+}
+
 <*
  Compile a POSIX regex pattern into a `Regex`.
 
  @param pattern  : "The regex pattern string."
- @param cflags   : "Compile flags: REG_EXTENDED | REG_ICASE | REG_NOSUB | REG_NEWLINE."
+ @param cflags   : "Compile flags: EXTENDED | ICASE | NOSUB | NEWLINE."
  @param allocator : "Allocator used to persist the compiled regex. Defaults to the heap allocator."
  @return "The compiled `Regex`, or a compile-error fault (BADPAT, ECOLLATE, ECTYPE, EESCAPE, ESUBREG, EBRACK, EPAREN, EBRACE, BADBR, ERANGE, OUT_OF_MEMORY, BADRPT)."
 *>
-fn Regex? compile(String pattern, int cflags = 0, Allocator allocator = mem)
+fn Regex? compile(String pattern, CompileFlags cflags = {}, Allocator allocator = mem)
 {
 	Regex preg;
 	re_compile(&preg, pattern, cflags, allocator)!;
 	return preg;
+}
+
+
+struct Match (Printable)
+{
+	String input;
+	RegMatch match;
 }
 
 <*
@@ -29,10 +62,10 @@ fn Regex? compile(String pattern, int cflags = 0, Allocator allocator = mem)
 
  @param str    : "The input string to search."
  @param nmatch : "Maximum number of capture groups to return (including group 0)."
- @param eflags : "Execute flags: REG_NOTBOL | REG_NOTEOL."
+ @param eflags : "Execute flags: NOTBOL and NOTEOL."
  @return "A temp-allocated slice of `Match[nmatch]`."
 *>
-fn Match[]? Regex.exec(&self, String str, sz nmatch = 1, int eflags = 0)
+fn Match[]? Regex.exec(&self, String str, sz nmatch = 1, ExecFlags eflags = {})
 {
 	RegMatch* matches = mem::talloc_array(RegMatch, nmatch);
 	re_exec(self, str, nmatch, matches, eflags)!;
@@ -81,14 +114,22 @@ const int RE_DUP_MAX = 255;
 const int CHAR_MAX_CODEPOINT = 0x10ffff;
 
 // Compile flags (cflags)
-const int REG_EXTENDED  = 1;
-const int REG_ICASE     = 2;
-const int REG_NOSUB     = 4;
-const int REG_NEWLINE   = 8;
+constdef CompileFlags : int
+{
+	EXTENDED = 1 << 0,
+	ICASE    = 1 << 1,
+	NOSUB    = 1 << 2,
+	NEWLINE  = 1 << 3,
+}
 
 // Execute flags (eflags)
-const int REG_NOTBOL    = 1;
-const int REG_NOTEOL    = 2;
+constdef ExecFlags : int
+{
+	NOTBOL = 1 << 0,
+	NOTEOL = 1 << 1,
+}
+
+
 
 faultdef
 	OK,
@@ -106,18 +147,12 @@ faultdef
 	OUT_OF_MEMORY,
 	BADRPT;
 
-alias RegOff = int;
+alias RegOff @private = int;
 
 struct RegMatch
 {
 	RegOff rm_so;
 	RegOff rm_eo;
-}
-
-struct Match (Printable)
-{
-	String input;
-	RegMatch match;
 }
 
 fn sz? Match.to_format(&self, Formatter* formatter) @dynamic => formatter.print(self.str());
@@ -133,44 +168,34 @@ fn String Match.str(&self) @inline
 fn bool Match.eq(&self, String other) @operator(==) @inline => self.str() == other;
 
 
-struct Regex
-{
-	<* The number of subexpressions in regex *>
-	sz    re_nsub;
-	<* internal TNFA pointer *>
-	Tnfa* __tnfa;
-}
-
-
 // ============================================================
 //  Internal: AST node types
 // ============================================================
 
-const int LITERAL    = 0;
-const int CATENATION = 1;
-const int ITERATION  = 2;
-const int UNION      = 3;
+const int LITERAL    @private = 0;
+const int CATENATION @private = 1;
+const int ITERATION  @private = 2;
+const int UNION      @private = 3;
 
 // Special code_min sentinel values for literal nodes
-const long EMPTY      = -1;
-const long ASSERTION  = -2;
-const long TAG        = -3;
-const long BACKREF    = -4;
+const long EMPTY      @private = -1;
+const long ASSERTION  @private = -2;
+const long TAG        @private = -3;
+const long BACKREF    @private = -4;
 
 // Assertion bits
-const int ASSERT_AT_BOL      =   1;
-const int ASSERT_AT_EOL      =   2;
-const int ASSERT_CHAR_CLASS  =   4;
-const int ASSERT_CHAR_CLASS_NEG = 8;
-const int ASSERT_AT_BOW      =  16;
-const int ASSERT_AT_EOW      =  32;
-const int ASSERT_AT_WB       =  64;
-const int ASSERT_AT_WB_NEG   = 128;
-const int ASSERT_BACKREF     = 256;
+const int ASSERT_AT_BOL         @private = 1;
+const int ASSERT_AT_EOL         @private = 2;
+const int ASSERT_CHAR_CLASS     @private = 4;
+const int ASSERT_CHAR_CLASS_NEG @private = 8;
+const int ASSERT_AT_BOW         @private = 16;
+const int ASSERT_AT_EOW         @private = 32;
+const int ASSERT_AT_WB          @private = 64;
+const int ASSERT_AT_WB_NEG      @private = 128;
+const int ASSERT_BACKREF        @private = 256;
 
-// Tag directions
-const int TRE_TAG_MINIMIZE = 0;
-const int TRE_TAG_MAXIMIZE = 1;
+const int TRE_TAG_MINIMIZE @private = 0;
+const int TRE_TAG_MAXIMIZE @private = 1;
 
 // ============================================================
 //  Internal: TNFA structures
@@ -211,7 +236,7 @@ struct Tnfa @local
 	int             num_minimals;
 	int             end_tag;
 	int             num_states;
-	int             cflags;
+	CompileFlags    cflags;
 	int             have_backrefs;
 	Allocator       allocator;     // The allocator used to persist the compiled TNFA structures
 }
@@ -466,7 +491,7 @@ struct ParseCtx @local
 	int      position;
 	int      max_backref;
 	uint     backref_ok;
-	int      cflags;
+	CompileFlags cflags;
 }
 
 // ============================================================
@@ -679,7 +704,7 @@ fn void? parse_bracket(ParseCtx* ctx, char* s) @local
 			};
 			ls_len++;
 
-			if ((ctx.cflags & REG_ICASE) != 0 && class == 0)
+			if ((ctx.cflags & ICASE) && class == 0)
 			{
 				if (add_icase_literals(&ls[0], &ls_len, min, max) < 0) return OUT_OF_MEMORY~;
 			}
@@ -690,7 +715,7 @@ fn void? parse_bracket(ParseCtx* ctx, char* s) @local
 	if (negate)
 	{
 		// With REG_NEWLINE, newlines are excluded from negated brackets.
-		if ((ctx.cflags & REG_NEWLINE) != 0)
+		if (ctx.cflags & NEWLINE)
 		{
 			if (ls_len >= 256) return OUT_OF_MEMORY~;
 			ls[ls_len] = {
@@ -781,7 +806,7 @@ fn AstNode*? make_literal(ParseCtx* ctx, int wc) @local
 {
 	char c = (char)wc;
 
-	if ((ctx.cflags & REG_ICASE) != 0 && (ascii::@is_lower(c) || ascii::@is_upper(c)))
+	if ((ctx.cflags & ICASE) && (ascii::@is_lower(c) || ascii::@is_upper(c)))
 	{
 		int u = ascii::@to_upper(c);
 		int l = ascii::@to_lower(c);
@@ -798,7 +823,7 @@ fn AstNode*? make_literal(ParseCtx* ctx, int wc) @local
 // musl's parse_atom.
 fn void? parse_atom(ParseCtx* ctx, char* s) @local
 {
-	bool ere = (ctx.cflags & REG_EXTENDED) != 0;
+	bool ere = (bool)(ctx.cflags & EXTENDED);
 	AstNode* node = null;
 
 	switch (*s)
@@ -902,7 +927,7 @@ fn void? parse_atom(ParseCtx* ctx, char* s) @local
 		}
 
 		case '.':
-			if ((ctx.cflags & REG_NEWLINE) != 0)
+			if (ctx.cflags & NEWLINE)
 			{
 				// REG_NEWLINE: '.' matches anything except '\n'.
 				AstNode* t1 = ast_new_literal(ctx.mem, 0, '\n' - 1, ctx.position++)!;
@@ -1034,7 +1059,7 @@ fn char*? parse_dup(char* s, bool ere, int* pmin, int* pmax) @local
 // Uses ctx.stack for group state. No depth parameter, depth is tracked locally.
 fn void? tre_parse(ParseCtx* ctx) @local
 {
-	bool ere = (ctx.cflags & REG_EXTENDED) != 0;
+	bool ere = (bool)(ctx.cflags & EXTENDED);
 	AstNode* nbranch = null;
 	AstNode* nunion = null;
 	char* s = ctx.start;
@@ -2004,8 +2029,8 @@ fn void? tre_ast_to_tnfa(Allocator mem, AstNode* node, TnfaTransition* transitio
 	}
 }
 
-const int COPY_REMOVE_TAGS	 = 1;
-const int COPY_MAXIMIZE_FIRST_TAG = 2;
+const int COPY_REMOVE_TAGS	      @private = 1;
+const int COPY_MAXIMIZE_FIRST_TAG @private = 2;
 
 enum CopyastSymbol @local
 {
@@ -2254,7 +2279,7 @@ fn void? tre_expand_ast(Allocator mem, Stack* stack, AstNode* ast, int* position
 }
 
 
-fn void? re_compile(Regex* preg, String regex, int cflags, Allocator allocator = mem)
+fn void? re_compile(Regex* preg, String regex, CompileFlags cflags, Allocator allocator = mem) @private
 {
 	@pool()
 	{
@@ -2402,12 +2427,12 @@ fn void? re_compile(Regex* preg, String regex, int cflags, Allocator allocator =
 }
 
 
-fn bool check_assertions(int assertions, int cflags, int prev_c, int next_c, sz pos, bool notbol, bool noteol) @local
+fn bool check_assertions(int assertions, CompileFlags cflags, int prev_c, int next_c, sz pos, bool notbol, bool noteol) @local
 {
 	switch
 	{
-		case (assertions & ASSERT_AT_BOL)    != 0 && (pos > 0 || notbol) && (prev_c != '\n' || (cflags & REG_NEWLINE) == 0):
-		case (assertions & ASSERT_AT_EOL)    != 0 && (next_c != 0 || noteol) && (next_c != '\n' || (cflags & REG_NEWLINE) == 0):
+		case (assertions & ASSERT_AT_BOL)    != 0 && (pos > 0 || notbol) && (prev_c != '\n' || !(cflags & NEWLINE)):
+		case (assertions & ASSERT_AT_EOL)    != 0 && (next_c != 0 || noteol) && (next_c != '\n' || !(cflags & NEWLINE)):
 		case (assertions & ASSERT_AT_BOW)    != 0 && (is_word_char(prev_c) || !is_word_char(next_c)):
 		case (assertions & ASSERT_AT_EOW)    != 0 && (!is_word_char(prev_c) || is_word_char(next_c)):
 		case (assertions & ASSERT_AT_WB)     != 0 && (is_word_char(prev_c) == is_word_char(next_c)):
@@ -2419,7 +2444,7 @@ fn bool check_assertions(int assertions, int cflags, int prev_c, int next_c, sz 
 
 fn bool check_char_classes(TnfaTransition* trans, Tnfa* tnfa, int prev_c) @local
 {
-	bool icase = (tnfa.cflags & REG_ICASE) != 0;
+	bool icase = (bool)(tnfa.cflags & ICASE);
 	if ((trans.assertions & ASSERT_CHAR_CLASS) != 0)
 	{
 		int class = trans.u_class_or_backref;
@@ -2443,39 +2468,7 @@ fn bool check_char_classes(TnfaTransition* trans, Tnfa* tnfa, int prev_c) @local
 	return false;
 }
 
-// fn int decode_utf8(char* s, int* len) @local // Maun TODO: Use stdlib
-// {
-// 	if (*s == 0)
-// 	{
-// 		*len = 0;
-// 		return 0;
-// 	}
-// 	int b = (int)*s & 0xFF;
-// 	if (b < 0x80)
-// 	{
-// 		*len = 1;
-// 		return b;
-// 	}
-// 	if ((b & 0xE0) == 0xC0)
-// 	{
-// 		*len = 2;
-// 		return ((b & 0x1F) << 6) | ((int)s[1] & 0x3F);
-// 	}
-// 	if ((b & 0xF0) == 0xE0)
-// 	{
-// 		*len = 3;
-// 		return ((b & 0x0F) << 12) | (((int)s[1] & 0x3F) << 6) | ((int)s[2] & 0x3F);
-// 	}
-// 	if ((b & 0xF8) == 0xF0)
-// 	{
-// 		*len = 4;
-// 		return ((b & 0x07) << 18) | (((int)s[1] & 0x3F) << 12) | (((int)s[2] & 0x3F) << 6) | ((int)s[3] & 0x3F);
-// 	}
-// 	*len = 1;
-// 	return b;
-// }
-
-fn int decode_utf8(char* s, int* len)
+fn int decode_utf8(char* s, int* len) @private
 {
 	if (*s == 0)
 	{
@@ -2490,7 +2483,7 @@ fn int decode_utf8(char* s, int* len)
 	{
 		// TODO: Should this regex strictly expect valid UTF-8 `String` inputs, or should it fall back
 		// to matching raw byte slices so it can handle arbitrary binary payloads?
-
+		// for now:
 		// Fallback for invalid UTF-8 (raw Latin-1 bytes in POSIX tests) to match as raw bytes.
 		*len = 1;
 		return *s & 0xFF;
@@ -2500,10 +2493,10 @@ fn int decode_utf8(char* s, int* len)
 	return (int)cp_opt;
 }
 
-fn void tre_fill_pmatch(sz nmatch, RegMatch* pmatch, int cflags, Tnfa* tnfa, int* tags, RegOff match_eo) @local
+fn void tre_fill_pmatch(sz nmatch, RegMatch* pmatch, CompileFlags cflags, Tnfa* tnfa, int* tags, RegOff match_eo) @local
 {
 	sz i = 0;
-	if (match_eo >= 0 && (cflags & REG_NOSUB) == 0)
+	if (match_eo >= 0 && !(cflags & NOSUB))
 	{
 		SubmatchData* submatch_data = tnfa.submatch_data;
 		while (i < tnfa.num_submatches && i < nmatch)
@@ -2615,15 +2608,14 @@ fn void get_next_wchar(int* prev_c, int* next_c, RegOff* pos, RegOff* pos_add_ne
 	*str_byte += *pos_add_next;
 }
 
-fn void? tre_tnfa_run_backtrack(Tnfa* tnfa, String string, int* match_tags, int eflags, RegOff* match_end_ofs) @local
+fn void? tre_tnfa_run_backtrack(Tnfa* tnfa, String string, int* match_tags, ExecFlags eflags, RegOff* match_end_ofs) @local
 {
 	int prev_c = 0;
 	int next_c = 0;
 	char* str_byte = string.ptr;
 	RegOff pos = 0;
 	RegOff pos_add_next = 1;
-	int reg_notbol = eflags & REG_NOTBOL;
-	int reg_noteol = eflags & REG_NOTEOL;
+
 
 	int next_c_start = 0;
 	char* str_byte_start = null;
@@ -2697,7 +2689,7 @@ fn void? tre_tnfa_run_backtrack(Tnfa* tnfa, String string, int* match_tags, int 
 				for (TnfaTransition* trans_i = tnfa.initial; trans_i.state; trans_i++)
 				{
 					if (trans_i.assertions != 0 &&
-						check_assertions(trans_i.assertions, tnfa.cflags, prev_c, next_c, pos, reg_notbol != 0, reg_noteol != 0))
+						check_assertions(trans_i.assertions, tnfa.cflags, prev_c, next_c, pos, (bool)(eflags & NOTBOL), (bool)(eflags & NOTEOL)))
 					{
 						continue;
 					}
@@ -2752,7 +2744,7 @@ fn void? tre_tnfa_run_backtrack(Tnfa* tnfa, String string, int* match_tags, int 
 					RegOff bt_len;
 					int result;
 
-					tre_fill_pmatch((sz)(bt + 1), pmatch, tnfa.cflags & ~REG_NOSUB, tnfa, tags, pos);
+					tre_fill_pmatch((sz)(bt + 1), pmatch, tnfa.cflags & ~NOSUB, tnfa, tags, pos);
 					so = pmatch[bt].rm_so;
 					eo = pmatch[bt].rm_eo;
 					bt_len = eo - so;
@@ -2805,7 +2797,7 @@ fn void? tre_tnfa_run_backtrack(Tnfa* tnfa, String string, int* match_tags, int 
 					if (prev_c >= trans_i.code_min && prev_c <= trans_i.code_max)
 					{
 						if (trans_i.assertions != 0 &&
-							(check_assertions(trans_i.assertions, tnfa.cflags, prev_c, next_c, (sz)pos, reg_notbol != 0, reg_noteol != 0) || check_char_classes(trans_i, tnfa, prev_c)))
+							(check_assertions(trans_i.assertions, tnfa.cflags, prev_c, next_c, (sz)pos, (bool)(eflags & NOTBOL), (bool)(eflags & NOTEOL)) || check_char_classes(trans_i, tnfa, prev_c)))
 						{
 							continue;
 						}
@@ -2885,13 +2877,13 @@ fn void? tre_tnfa_run_backtrack(Tnfa* tnfa, String string, int* match_tags, int 
 	if (match_eo < 0) return NOMATCH~;
 }
 
-fn void? tre_tnfa_run_parallel(Tnfa* tnfa, String string, int* match_tags, int eflags, RegOff* match_end_ofs) @local
+fn void? tre_tnfa_run_parallel(Tnfa* tnfa, String string, int* match_tags, ExecFlags eflags, RegOff* match_end_ofs) @local
 {
 	int prev_c = 0;
 	int next_c = 0;
 	sz pos = 0;
-	bool notbol = (eflags & REG_NOTBOL) != 0;
-	bool noteol = (eflags & REG_NOTEOL) != 0;
+	bool notbol = (bool)(eflags & NOTBOL);
+	bool noteol = (bool)(eflags & NOTEOL);
 	int num_tags = (match_tags != null) ? tnfa.num_tags : 0;
 	int num_states = tnfa.num_states;
 
@@ -3072,7 +3064,7 @@ fn void? tre_tnfa_run_parallel(Tnfa* tnfa, String string, int* match_tags, int e
 	if (match_eo < 0) return NOMATCH~;
 }
 
-fn void? re_exec(Regex* preg, String string, sz nmatch, RegMatch* pmatch, int eflags)
+fn void? re_exec(Regex* preg, String string, sz nmatch, RegMatch* pmatch, ExecFlags eflags) @private
 {
 	@pool()
 	{
@@ -3115,7 +3107,7 @@ fn void? re_exec(Regex* preg, String string, sz nmatch, RegMatch* pmatch, int ef
 	};
 }
 
-fn void re_free(Regex* preg)
+fn void re_free(Regex* preg) @private
 {
 	Tnfa* tnfa = preg.__tnfa;
 	if (!tnfa) return;

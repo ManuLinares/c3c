@@ -87,6 +87,8 @@ else()
     else()
         if (APPLE)
             add_link_options("-Wl,-S")
+        elseif (EMSCRIPTEN)
+            add_link_options("-Wl,--strip-all")
         else()
             # This covers Linux, BSD, and MinGW on Windows
             add_link_options("-s")
@@ -271,7 +273,7 @@ if(C3_WITH_LLVM)
             list(APPEND LLVM_LIBRARY_DIRS /opt/homebrew/lib)
         endif()
 
-        if (EXISTS /usr/lib)
+        if (EXISTS /usr/lib AND NOT EMSCRIPTEN)
             # Some systems (such as Alpine Linux) seem to put some of the relevant
             # LLVM files in /usr/lib, but this doesn't seem to be included in the
             # value of LLVM_LIBRARY_DIRS.
@@ -590,6 +592,10 @@ if(C3_AVR_DISABLE)
 	target_compile_definitions(c3c PRIVATE AVR_DISABLE)
 endif()
 
+if(EMSCRIPTEN)
+	target_compile_definitions(c3c PRIVATE ARM_DISABLE AARCH64_DISABLE RISCV_DISABLE X86_DISABLE)
+endif()
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
     # We are inside of a git repository so rebuilding the hash every time something changes.
     add_custom_command(
@@ -816,7 +822,6 @@ else()
         target_compile_options(c3c_wrappers PRIVATE -fno-rtti)
     endif()
     target_compile_options(c3c PRIVATE
-        -pthread
         -Wall
         -Werror
         -Wno-unknown-pragmas
@@ -826,7 +831,10 @@ else()
         -Wno-unused-parameter
         -Wno-char-subscripts
     )
-    target_link_options(c3c PRIVATE -pthread)
+    if (NOT EMSCRIPTEN)
+        target_compile_options(c3c PRIVATE -pthread)
+        target_link_options(c3c PRIVATE -pthread)
+    endif()
 endif()
 
 if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")

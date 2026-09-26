@@ -153,11 +153,15 @@ fn void destroy_platform()
 
 fn bool _send_key_repeat_maybe(bool cancel_read = false) @local
 {
-	if (ctx.wl_repeat_info_rate && ctx.last_key
+	if (ctx.wl_repeat_info_rate && ctx.last_key && ctx.kb_owner
 		&& ctx.last_key_time.to_now() >= time::NANO_DURATION_ZERO)
 	{
 		if (cancel_read) wl_display_cancel_read(ctx.wl_display);
+
+		GfxKey gfx_key = gfx::key_from_api(ctx.last_key + 8);
+		gfx::_key_callback(ctx.kb_owner, gfx_key, ctx.kb_owner.internal.mod, true, true);
 		_send_key_event(ctx.last_key);
+
 		ctx.last_key_time = clock::now() + time::from_float(1.0 / ctx.wl_repeat_info_rate).to_nano();
 		return true;
 	}

@@ -11,6 +11,10 @@ struct TestRunnerContext
 	Atomic{int} skip_count;
 	Atomic{int} success_count;
 	Atomic{int} failure_count;
+	Atomic{long} total_io_ns;
+	Atomic{long} total_spawn_ns;
+	Atomic{long} total_exec_ns;
+	Atomic{long} total_verify_ns;
 	Path start_cwd;
 	Path test_root;
 	bool no_terminal;
@@ -452,6 +456,8 @@ fn bool test_file(Path file_path, Path test_dir, OutStream output_stream, sz ind
 			return false;
 	}
 
+	Clock t_io_start = clock::now();
+
 	char[]? content_raw = file::load_path_temp(file_path);
 	if (catch content_raw)
 	{
@@ -527,6 +533,7 @@ fn bool test_file(Path file_path, Path test_dir, OutStream output_stream, sz ind
 		Path expected_file = test_dir.tappend(file.name)!!;
 		if (file::exists(expected_file)) (void)file::delete(expected_file);
 	}
+	context.total_io_ns.add((long)t_io_start.to_now());
 
 	List{String} cmdline;
 	cmdline.init(tmem, 32);
@@ -597,9 +604,12 @@ fn bool test_file(Path file_path, Path test_dir, OutStream output_stream, sz ind
 	}
 
 	if (global_should_quit.load()) return false;
+	Clock t_spawn_start = clock::now();
 	Process compilation = process::spawn(cmdline.array_view(), NO_WINDOW | INHERIT_ENV)!!;
+	context.total_spawn_ns.add((long)t_spawn_start.to_now());
 	defer compilation.destroy();
 
+	Clock t_exec_start = clock::now();
 	DString out;
 	out.init(tmem, 4096);
 	char[4096] tmp_buf;
@@ -614,6 +624,7 @@ fn bool test_file(Path file_path, Path test_dir, OutStream output_stream, sz ind
 	}
 
 	CInt result = compilation.join() ?? 1;
+	context.total_exec_ns.add((long)t_exec_start.to_now());
 
 	if (result != 0 && result != 1)
 	{
@@ -629,6 +640,7 @@ fn bool test_file(Path file_path, Path test_dir, OutStream output_stream, sz ind
 		return false;
 	}
 
+	Clock t_verify_start = clock::now();
 	if (!parse_result(out, settings, &cmdline, output_stream, result)) return false;
 
 	if (context.backend != "c")
@@ -671,6 +683,7 @@ fn bool test_file(Path file_path, Path test_dir, OutStream output_stream, sz ind
 			}
 		}
 	}
+	context.total_verify_ns.add((long)t_verify_start.to_now());
 
 	context.success_count.add(1);
 	update_status({});
@@ -901,6 +914,7 @@ fn int main(String[] args)
 		io::print(all_ok ? Ansi.GREEN : Ansi.RED);
 	}
 
+	const double NS_PER_SEC = 1_000_000_000.0;
 	io::printfn(
 		"\nFound %d tests: %.1f%% (%d / %d) passed (%d skipped, %d failed).",
 		display_total,
@@ -909,6 +923,11 @@ fn int main(String[] args)
 		display_run,
 		display_skipped,
 		failed);
+	io::printfn("Timing breakdown (cumulative wall-clock across threads):");
+	io::printfn(" - Disk I/O (prep):     %.2fs", (double)context.total_io_ns.load() / NS_PER_SEC);
+	io::printfn(" - Process spawn:       %.2fs", (double)context.total_spawn_ns.load() / NS_PER_SEC);
+	io::printfn(" - Compiler execution:  %.2fs", (double)context.total_exec_ns.load() / NS_PER_SEC);
+	io::printfn(" - Verification:        %.2fs", (double)context.total_verify_ns.load() / NS_PER_SEC);
 
 	if (!context.no_terminal)
 	{

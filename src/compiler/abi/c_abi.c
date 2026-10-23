@@ -232,6 +232,52 @@ ABIArgInfo *abi_arg_new_direct_struct_expand_i32(uint8_t elements, ParamInfo par
 	return info;
 }
 
+static ABIArgInfo *c_abi_classify_return_arm(ParamInfo param)
+{
+	Type *type = type_lowering(param.type);
+	if (type_is_void(type)) return abi_arg_ignore();
+	if (type_is_abi_aggregate(type))
+	{
+		ByteSize size = type_size(type);
+		if (size == 0) return abi_arg_ignore();
+		if (size <= 4) return abi_arg_new_direct_coerce_type_bits(32, param);
+		return abi_arg_new_indirect_by_val(type, param);
+	}
+	if (type_is_promotable_int_bool(type)) return abi_arg_new_direct_int_ext(type, param);
+	return abi_arg_new_direct(param);
+}
+
+static ABIArgInfo *c_abi_classify_argument_arm(ParamInfo param)
+{
+	Type *type = type_lowering(param.type);
+	if (type_is_abi_aggregate(type))
+	{
+		ByteSize size = type_size(type);
+		if (size == 0) return abi_arg_ignore();
+		if (size <= 4) return abi_arg_new_direct_coerce_type_bits(32, param);
+		return abi_arg_new_indirect_by_val(type, param);
+	}
+	if (type_is_promotable_int_bool(type)) return abi_arg_new_direct_int_ext(type, param);
+	return abi_arg_new_direct(param);
+}
+
+static void c_abi_func_create_arm(FunctionPrototype *prototype, ParamInfo *params, int param_count, ParamInfo *vaargs, int vaarg_count)
+{
+	prototype->ret_abi_info = c_abi_classify_return_arm(prototype->return_info);
+	if (param_count)
+	{
+		ABIArgInfo **args = MALLOC(sizeof(ABIArgInfo) * param_count);
+		for (int i = 0; i < param_count; i++) args[i] = c_abi_classify_argument_arm(params[i]);
+		prototype->abi_args = args;
+	}
+	if (vaarg_count)
+	{
+		ABIArgInfo **args = MALLOC(sizeof(ABIArgInfo) * vaarg_count);
+		for (int i = 0; i < vaarg_count; i++) args[i] = c_abi_classify_argument_arm(vaargs[i]);
+		prototype->abi_varargs = args;
+	}
+}
+
 // Fully set up the prototype correctly
 void c_abi_func_create(Signature *sig, FunctionPrototype *proto, Expr **vaargs)
 {
@@ -315,8 +361,10 @@ void c_abi_func_create(Signature *sig, FunctionPrototype *proto, Expr **vaargs)
 		case ABI_AVR:
 			c_abi_func_create_default(proto, params, param_count, vaarg_params, vaarg_count);
 			return;
-		case ABI_UNKNOWN:
 		case ABI_ARM:
+			c_abi_func_create_arm(proto, params, param_count, vaarg_params, vaarg_count);
+			return;
+		case ABI_UNKNOWN:
 		case ABI_PPC32:
 		case ABI_PPC64_SVR4:
 			break;

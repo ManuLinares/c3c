@@ -475,7 +475,7 @@ static inline void target_setup_arm_abi(void)
 				return;
 			}
 			compiler.platform.arm.abi_variant = ARM_ABI_AAPCS;
-			break;
+			return;
 	}
 	UNREACHABLE_VOID
 }
@@ -1217,6 +1217,7 @@ static char *arch_to_target_triple(ArchOsTarget target, LinuxLibc linux_libc)
 		case ELF_RISCV64: return "riscv64-unknown-elf";
 		case ELF_XTENSA: return "xtensa-unknown-elf";
 		case ELF_AVR: return "avr-unknown-unknown";
+		case ELF_ARM: return "arm-none-eabi";
 		case WASM32: return "wasm32-unknown-unknown";
 		case WASM64: return "wasm64-unknown-unknown";
 		case EMSCRIPTEN_WASM32: return "wasm32-unknown-emscripten";
@@ -1235,6 +1236,8 @@ static bool arch_is_supported(ArchType arch)
 		case ARCH_TYPE_AARCH64:
 		case ARCH_TYPE_RISCV32:
 		case ARCH_TYPE_RISCV64:
+		case ARCH_TYPE_ARM:
+		case ARCH_TYPE_THUMB:
 			return true;
 		default:
 			return false;

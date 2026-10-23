@@ -335,6 +335,7 @@ static LinkLibc libc_from_arch_os(ArchOsTarget target)
 		case ELF_XTENSA:
 			return LINK_LIBC_OFF;
 		case ELF_AVR:
+		case ELF_ARM:
 			return LINK_LIBC_OFF;
 	}
 	UNREACHABLE

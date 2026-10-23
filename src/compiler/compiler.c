@@ -1673,6 +1673,8 @@ static int jump_buffer_size(void)
 		case ELF_AVR:
 			// Extracted from avr-libc
 			return 12;
+		case ELF_ARM:
+			return 16;
 		case ELF_RISCV64:
 		case LINUX_RISCV64:
 			// Godbolt test
